@@ -28,7 +28,7 @@ object AudioFx {
             rev?.let { it.enabled = enabled && revPreset > 0; if (revPreset > 0) it.preset = (revPreset - 1).toShort() }
         } catch (_: Exception) { }
     }
-    fun setEnabled(v: Boolean) { enabled = v; apply() }
+    fun setFxEnabled(v: Boolean) { enabled = v; apply() }
     fun setLevel(b: Int, mB: Int) { levels[b] = mB; apply() }
     fun range(): Pair<Int, Int> = eq?.bandLevelRange?.let { it[0].toInt() to it[1].toInt() } ?: (-1500 to 1500)
 
