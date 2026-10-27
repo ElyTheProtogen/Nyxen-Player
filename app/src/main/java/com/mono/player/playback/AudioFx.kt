@@ -2,8 +2,6 @@ package com.mono.player.playback
 
 import android.media.audiofx.*
 
-/** Effects attach to ExoPlayer's audio session, so they change the actual output.
- *  Band count is device-dependent (often 5). State is re-applied when the session changes. */
 object AudioFx {
     var eq: Equalizer? = null; var bass: BassBoost? = null
     var rev: PresetReverb? = null; var virt: Virtualizer? = null
@@ -32,7 +30,6 @@ object AudioFx {
     fun setLevel(b: Int, mB: Int) { levels[b] = mB; apply() }
     fun range(): Pair<Int, Int> = eq?.bandLevelRange?.let { it[0].toInt() to it[1].toInt() } ?: (-1500 to 1500)
 
-    /** Curves over relative band position f in 0..1, result in -1..1 of the max boost. */
     val presets: Map<String, (Float) -> Float> = linkedMapOf(
         "Flat" to { _ -> 0f },
         "Bass Boost" to { f -> (1f - f * 3f).coerceAtLeast(0f) * 0.8f },
