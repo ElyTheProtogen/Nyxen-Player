@@ -1,6 +1,9 @@
 package com.mono.player
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,53 +17,93 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
-/** Raised, light-from-top-left button. Pressing it sinks it in (debossed), shrinks it with a spring and gives a haptic tick. */
+val LocalAccent = compositionLocalOf { Color(0xFFB14BFF) }
+val LocalHaptics = compositionLocalOf { true }
+
+/** Raised button tinted with the current theme accent. Sinks in when pressed, springs back, optional haptic tick. */
 @Composable
 fun EmbossedIconButton(onClick: () -> Unit, modifier: Modifier = Modifier.size(48.dp), shape: Shape = CircleShape, content: @Composable () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val s by animateFloatAsState(if (pressed) 0.91f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "press")
-    val lift by animateFloatAsState(if (pressed) 1f else 8f, tween(120), label = "lift")
+    val s by animateFloatAsState(if (pressed) 0.92f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "press")
+    val lift by animateFloatAsState(if (pressed) 1f else 10f, tween(120), label = "lift")
     val haptic = LocalHapticFeedback.current
-    val face = Brush.linearGradient(if (pressed) listOf(Color(0xFF0E0E0E), Color(0xFF383838)) else listOf(Color(0xFF4D4D4D), Color(0xFF141414)))
-    val rim = Brush.linearGradient(if (pressed) listOf(Color.Black, Color.White.copy(.35f)) else listOf(Color.White.copy(.6f), Color.Black.copy(.85f)))
+    val hapticsOn = LocalHaptics.current
+    val a = LocalAccent.current
+    val face = Brush.linearGradient(
+        if (pressed) listOf(lerp(a, Color.Black, .75f), lerp(a, Color.Black, .45f)) else listOf(lerp(a, Color.White, .18f), lerp(a, Color.Black, .62f))
+    )
+    val rim = Brush.linearGradient(if (pressed) listOf(Color.Black, Color.White.copy(.3f)) else listOf(Color.White.copy(.65f), Color.Black.copy(.8f)))
     Box(
-        modifier.scale(s).shadow(lift.dp, shape).clip(shape).background(face).border(1.5.dp, rim, shape)
-            .clickable(src, null) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
+        modifier.graphicsLayer { scaleX = s; scaleY = s }.shadow(lift.dp, shape, ambientColor = a, spotColor = a)
+            .clip(shape).background(face).border(1.5.dp, rim, shape)
+            .clickable(src, null) { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
         Alignment.Center
     ) { CompositionLocalProvider(LocalContentColor provides Color.White) { content() } }
 }
 
-/** Four bars that dance while playing and settle low when paused. */
+/** Four bars that dance while playing and settle low when paused. Heights are read in the draw phase, so no recomposition per frame. */
 @Composable
 fun NowPlayingBars(playing: Boolean, modifier: Modifier = Modifier.size(24.dp)) {
     val t = rememberInfiniteTransition(label = "bars")
     val hs = listOf(420, 560, 360, 500).mapIndexed { i, ms ->
         t.animateFloat(0.25f, 1f, infiniteRepeatable(tween(ms, easing = LinearEasing), RepeatMode.Reverse, StartOffset(i * 90)), label = "b$i")
     }
+    val amp by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "amp")
+    val tint = lerp(LocalAccent.current, Color.White, .6f)
     Row(modifier, Arrangement.spacedBy(2.dp), Alignment.Bottom) {
         hs.forEach { h ->
-            val f by animateFloatAsState(if (playing) h.value else 0.2f, tween(250), label = "bh")
-            Box(Modifier.weight(1f).fillMaxHeight(f).clip(RoundedCornerShape(2.dp)).background(Color.White))
+            Box(Modifier.weight(1f).fillMaxHeight().graphicsLayer {
+                scaleY = 0.2f + (h.value - 0.2f) * amp; transformOrigin = TransformOrigin(0.5f, 1f)
+            }.clip(RoundedCornerShape(2.dp)).background(tint))
         }
     }
+}
+
+/** Two slow-drifting glows behind the app. Animated values are read only while drawing. */
+@Composable
+fun AuroraGlow(accent: Color, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "aurora")
+    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse), label = "p")
+    Box(modifier.drawBehind {
+        val w = size.width; val h = size.height; val r = w * 0.8f
+        val c1 = Offset(w * (0.1f + 0.7f * p), h * (0.18f + 0.1f * p))
+        val c2 = Offset(w * (0.9f - 0.7f * p), h * (0.85f - 0.12f * p))
+        drawCircle(brush = Brush.radialGradient(listOf(accent.copy(alpha = .34f), Color.Transparent), center = c1, radius = r), radius = r, center = c1)
+        drawCircle(brush = Brush.radialGradient(listOf(accent.copy(alpha = .22f), Color.Transparent), center = c2, radius = r), radius = r, center = c2)
+    })
+}
+
+/** Dark translucent card with a thin accent-lit border. */
+@Composable
+fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val a = LocalAccent.current
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier.clip(shape).background(Color.Black.copy(alpha = .42f))
+            .border(1.dp, Brush.linearGradient(listOf(a.copy(alpha = .7f), Color.White.copy(alpha = .08f))), shape).padding(16.dp),
+        content = content
+    )
 }
 
 /** Fades and slides its content in after [delayMs]; use increasing delays to stagger a screen. */
 @Composable
 fun Reveal(delayMs: Int = 0, content: @Composable () -> Unit) {
     var on by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(delayMs.toLong()); on = true }
-    androidx.compose.animation.AnimatedVisibility(
-        on, enter = androidx.compose.animation.fadeIn(tween(350)) + androidx.compose.animation.slideInVertically(tween(350)) { it / 6 }
-    ) { content() }
+    LaunchedEffect(Unit) { delay(delayMs.toLong()); on = true }
+    AnimatedVisibility(on, enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { it / 6 }) { content() }
 }
