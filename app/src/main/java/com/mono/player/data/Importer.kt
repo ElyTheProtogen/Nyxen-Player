@@ -10,6 +10,16 @@ data class ImportResult(val added: Int, val duplicates: Int, val failed: Int)
 object Importer {
     private val ext = setOf("mp3", "wav", "ogg", "m4a")
 
+    private fun small(b: ByteArray?): ByteArray? = b?.let {
+        try {
+            val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size, o)
+            var s = 1; while (o.outWidth / (s * 2) >= 400) s *= 2
+            val bmp = android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = s }) ?: return@let null
+            java.io.ByteArrayOutputStream().also { out -> bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out) }.toByteArray()
+        } catch (_: Exception) { null }
+    }
+
     suspend fun import(c: Context, uris: List<Uri>): ImportResult {
         val dao = Db.get(c).dao(); var a = 0; var d = 0; var f = 0
         for (u in uris) {
@@ -28,7 +38,7 @@ object Importer {
                     artist = m(MediaMetadataRetriever.METADATA_KEY_ARTIST, "Unknown artist"),
                     album = m(MediaMetadataRetriever.METADATA_KEY_ALBUM, "Unknown album"),
                     genre = m(MediaMetadataRetriever.METADATA_KEY_GENRE, "Unknown genre"),
-                    durationMs = dur, addedAt = System.currentTimeMillis(), artwork = r.embeddedPicture
+                    durationMs = dur, addedAt = System.currentTimeMillis(), artwork = small(r.embeddedPicture)
                 )
                 if (dao.insert(t) == -1L) d++ else a++
             } catch (_: Exception) { f++ } finally { r.release() }
