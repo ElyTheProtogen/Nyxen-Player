@@ -58,7 +58,11 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(s: Bundle?) {
         super.onCreate(s); enableEdgeToEdge()
-        setContent { MaterialTheme(colorScheme = darkColorScheme()) { App() } }
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme(onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
+                CompositionLocalProvider(LocalContentColor provides Color.White) { App() }
+            }
+        }
     }
 }
 
