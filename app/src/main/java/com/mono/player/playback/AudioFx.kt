@@ -1,7 +1,10 @@
 package com.mono.player.playback
 
+import android.content.Context
 import android.media.audiofx.*
 
+/** Effects attach to ExoPlayer's audio session, so they change the actual output.
+ *  Band count is device-dependent (often 5). State is re-applied when the session changes. */
 object AudioFx {
     var eq: Equalizer? = null; var bass: BassBoost? = null
     var rev: PresetReverb? = null; var virt: Virtualizer? = null
@@ -26,10 +29,42 @@ object AudioFx {
             rev?.let { it.enabled = enabled && revPreset > 0; if (revPreset > 0) it.preset = (revPreset - 1).toShort() }
         } catch (_: Exception) { }
     }
+    private var loaded = false
+    var current = "Flat"
+    fun load(c: Context) {
+        if (loaded) return; loaded = true
+        val p = c.getSharedPreferences("fx", Context.MODE_PRIVATE)
+        enabled = p.getBoolean("on", true); bassStr = p.getInt("bass", 0); virtStr = p.getInt("virt", 0); revPreset = p.getInt("rev", 0)
+        p.getString("levels", null)?.split(",")?.forEachIndexed { i, v -> if (i < levels.size) levels[i] = v.toIntOrNull() ?: 0 }
+        current = p.getString("cur", "Flat") ?: "Flat"
+    }
+    fun save(c: Context) {
+        c.getSharedPreferences("fx", Context.MODE_PRIVATE).edit().putBoolean("on", enabled).putInt("bass", bassStr).putInt("virt", virtStr)
+            .putInt("rev", revPreset).putString("levels", levels.joinToString(",")).putString("cur", current).apply()
+    }
+    fun customs(c: Context): LinkedHashMap<String, IntArray> {
+        val out = LinkedHashMap<String, IntArray>()
+        (c.getSharedPreferences("fx", Context.MODE_PRIVATE).getString("customs", "") ?: "").split(";").filter { it.contains("|") }.forEach {
+            val parts = it.split("|", limit = 2)
+            out[parts[0]] = parts[1].split(",").map { x -> x.toIntOrNull() ?: 0 }.toIntArray()
+        }
+        return out
+    }
+    private fun writeCustoms(c: Context, all: Map<String, IntArray>) {
+        c.getSharedPreferences("fx", Context.MODE_PRIVATE).edit().putString("customs", all.entries.joinToString(";") { "${it.key}|${it.value.joinToString(",")}" }).apply()
+    }
+    fun saveCustom(c: Context, name: String): String {
+        val clean = name.replace(";", "").replace("|", "").trim().take(20); if (clean.isEmpty()) return ""
+        val all = customs(c); all[clean] = levels.copyOf(); writeCustoms(c, all); return clean
+    }
+    fun deleteCustom(c: Context, name: String) { val all = customs(c); all.remove(name); writeCustoms(c, all) }
+    fun useLevels(a: IntArray) { for (i in a.indices) if (i < levels.size) levels[i] = a[i]; apply() }
+
     fun setFxEnabled(v: Boolean) { enabled = v; apply() }
-    fun setLevel(b: Int, mB: Int) { levels[b] = mB; apply() }
+    fun setLevel(b: Int, mB: Int) { levels[b] = mB; current = "Custom"; apply() }
     fun range(): Pair<Int, Int> = eq?.bandLevelRange?.let { it[0].toInt() to it[1].toInt() } ?: (-1500 to 1500)
 
+    /** Curves over relative band position f in 0..1, result in -1..1 of the max boost. */
     val presets: Map<String, (Float) -> Float> = linkedMapOf(
         "Flat" to { _ -> 0f },
         "Bass Boost" to { f -> (1f - f * 3f).coerceAtLeast(0f) * 0.8f },
@@ -40,6 +75,7 @@ object AudioFx {
         "Electronic" to { f -> kotlin.math.abs(f - 0.5f) * 1.4f - 0.2f }
     )
     fun usePreset(name: String) {
+        current = name
         val e = eq ?: return; val (_, hi) = range(); val n = e.numberOfBands.toInt()
         for (b in 0 until n) levels[b] = ((presets[name]!!((b.toFloat() / (n - 1).coerceAtLeast(1))) * hi * 0.6f)).toInt()
         apply()

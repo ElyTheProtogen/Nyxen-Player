@@ -17,6 +17,7 @@ class PlaybackService : MediaSessionService() {
                 .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+        AudioFx.load(applicationContext)
         AudioFx.attach(player.audioSessionId)
         player.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) = AudioFx.attach(audioSessionId)
