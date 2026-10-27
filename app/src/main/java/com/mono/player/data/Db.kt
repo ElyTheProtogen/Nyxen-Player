@@ -25,6 +25,7 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Query("SELECT t.* FROM tracks t JOIN playlist_tracks p ON t.id=p.trackId WHERE p.playlistId=:id ORDER BY p.position")
     suspend fun playlistTracks(id: Long): List<Track>
     @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId=:id") suspend fun count(id: Long): Int
+    @Query("SELECT COUNT(*) FROM tracks WHERE title=:t AND artist=:a AND durationMs=:d") suspend fun similar(t: String, a: String, d: Long): Int
     @Insert suspend fun addPlaylist(p: Playlist): Long
     @Query("SELECT * FROM playlists") fun playlists(): Flow<List<Playlist>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun addToPlaylist(pt: PlaylistTrack)
