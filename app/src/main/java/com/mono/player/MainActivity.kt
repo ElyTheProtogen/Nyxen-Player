@@ -18,6 +18,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.mono.player.ui.SettingsScreen
+import com.mono.player.ui.Themes
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.absoluteValue
 import androidx.compose.foundation.background
@@ -94,9 +98,24 @@ fun App() {
     var showQueue by remember { mutableStateOf(false) }
     var newPl by remember { mutableStateOf(false) }
 
+    val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
+    var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
+    var autoImport by remember { mutableStateOf(prefs.getBoolean("auto", true)) }
+    var sub by remember { mutableIntStateOf(0) }
+    var askPerm by remember { mutableStateOf(false) }
+    var scanning by remember { mutableStateOf(false) }
+    val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    fun askNotif() { if (Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) }
+    fun rescan() { scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; msg = "Scan finished: ${r.added} new songs" } }
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) rescan() else msg = "Permission denied. You can still add songs with Import music."
+        askNotif()
+    }
+    fun hasAudioPerm() = ContextCompat.checkSelfPermission(ctx, audioPerm) == PackageManager.PERMISSION_GRANTED
+    fun requestScan() { if (hasAudioPerm()) rescan() else askPerm = true }
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) // lock-screen/notification controls
+        if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport) rescan(); askNotif() }
         val f = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))).buildAsync()
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
@@ -141,7 +160,11 @@ fun App() {
             }, colors = ListItemDefaults.colors(containerColor = animateColorAsState(if ("${t.id}" == curId) Color.White.copy(.14f) else Color.Transparent, tween(300), label = "rowbg").value))
     }
 
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black, Color(0xFF3A3A3A), Color(0xFFBDBDBD))))) {
+    val th = Themes[themeIdx]
+    val g0 by animateColorAsState(th.top, tween(700), label = "g0")
+    val g1 by animateColorAsState(th.mid, tween(700), label = "g1")
+    val g2 by animateColorAsState(th.bottom, tween(700), label = "g2")
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(g0, g1, g2))).background(Color.Black.copy(alpha = th.scrim))) {
         Scaffold(containerColor = Color.Transparent, bottomBar = {
             Column(Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
                 AnimatedVisibility(cur != null, enter = slideInVertically(tween(350)) { it } + fadeIn(tween(350)), exit = slideOutVertically(tween(250)) { it } + fadeOut(tween(250))) {
@@ -187,6 +210,7 @@ fun App() {
                             EmbossedIconButton({ asc = !asc }, Modifier.size(40.dp)) { val rot by animateFloatAsState(if (asc) 0f else 180f, tween(250), label = "sort"); Icon(Icons.Default.ArrowUpward, "Toggle sort direction", Modifier.rotate(rot)) }
                         }
                         AnimatedVisibility(msg != null) { Text(msg ?: "", Modifier.padding(vertical = 8.dp)) }
+                        AnimatedVisibility(scanning) { LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 4.dp)) }
                         AnimatedVisibility(tracks.isEmpty()) { Text("Your library is empty. Import music to begin.", Modifier.padding(top = 32.dp)) }
                         LazyColumn { items(sorted.size, key = { sorted[it].id }) { Box(Modifier.animateItem()) { TrackRow(sorted, it) } } }
                     }
@@ -204,7 +228,8 @@ fun App() {
                             trailingContent = { IconButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) } }) { Icon(Icons.Default.Delete, "Delete playlist") } },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent)) } }
                     }
-                    else -> Studio()
+                    else -> SettingsScreen(sub, { sub = it }, themeIdx, { themeIdx = it; prefs.edit().putInt("theme", it).apply() },
+                        autoImport, { autoImport = it; prefs.edit().putBoolean("auto", it).apply(); if (it) requestScan() }, scanning) { requestScan() }
                 }
             }
             }
@@ -217,7 +242,7 @@ fun App() {
                 Row(Modifier.fillMaxWidth()) {
                     EmbossedIconButton({ full = false }, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
                     Spacer(Modifier.weight(1f))
-                    EmbossedIconButton({ full = false; scope.launch { pager.animateScrollToPage(4) } }, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
+                    EmbossedIconButton({ full = false; sub = 2; scope.launch { pager.animateScrollToPage(4) } }, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
                     EmbossedIconButton({ showQueue = true }, Modifier.size(44.dp)) { Icon(Icons.Default.QueueMusic, "Queue") }
                 }
                 val artScale by animateFloatAsState(if (playing) 1f else 0.86f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "art")
@@ -247,6 +272,10 @@ fun App() {
         }
     }
 
+    if (askPerm) AlertDialog({ askPerm = false; askNotif() }, title = { Text("Find your music?") },
+        text = { Text("MonoPlayer needs access to audio files on your device so it can find and add your .mp3, .m4a, .ogg and .wav songs automatically. It only reads music files and never uploads them.") },
+        confirmButton = { TextButton({ askPerm = false; permLauncher.launch(audioPerm) }) { Text("Continue") } },
+        dismissButton = { TextButton({ askPerm = false; askNotif() }) { Text("Not now") } })
     if (showQueue) AlertDialog({ showQueue = false }, confirmButton = { TextButton({ showQueue = false }) { Text("Close") } }, title = { Text("Queue") }, text = {
         LazyColumn { items((c?.mediaItemCount ?: 0)) { i -> val m = c!!.getMediaItemAt(i)
             ListItem({ Text(m.mediaMetadata.title?.toString() ?: "Track") }, Modifier.clickable { c?.seekTo(i, 0); showQueue = false }) } } })
