@@ -114,7 +114,7 @@ fun App() {
         tracks.sortedWith(if (asc) cmp else cmp.reversed())
     }
 
-    @Composable fun Row(list: List<Track>, i: Int) {
+    @Composable fun TrackRow(list: List<Track>, i: Int) {
         val t = list[i]; var menu by remember { mutableStateOf(false) }
         ListItem({ Text(t.title, maxLines = 1) }, Modifier.clickable { play(list, i) },
             supportingContent = { Text("${t.artist} · ${t.album} · Local", maxLines = 1) },
@@ -160,7 +160,7 @@ fun App() {
                         if (tracks.isEmpty()) Text("Import music in the Library tab to get started.", Modifier.padding(top = 32.dp))
                         LazyColumn { sections.forEach { (h, l) -> if (l.isNotEmpty()) {
                             item { Text(h, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp)) }
-                            items(l.size) { Row(l, it) } } } }
+                            items(l.size) { TrackRow(l, it) } } } }
                     }
                     1 -> {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -172,14 +172,14 @@ fun App() {
                         }
                         msg?.let { Text(it, Modifier.padding(vertical = 8.dp)) }
                         if (tracks.isEmpty()) Text("Your library is empty. Import music to begin.", Modifier.padding(top = 32.dp))
-                        LazyColumn { items(sorted.size) { Row(sorted, it) } }
+                        LazyColumn { items(sorted.size) { TrackRow(sorted, it) } }
                     }
                     2 -> {
                         OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(top = 8.dp), singleLine = true, placeholder = { Text("Search your library") },
                             trailingIcon = { if (query.isNotEmpty()) IconButton({ query = "" }) { Icon(Icons.Default.Clear, "Clear search") } })
                         val r = if (query.isBlank()) emptyList() else tracks.filter { t -> listOf(t.title, t.artist, t.album, t.genre).any { it.contains(query, true) } }
                         if (query.isNotBlank() && r.isEmpty()) Text("No results", Modifier.padding(top = 24.dp))
-                        LazyColumn { items(r.size) { Row(r, it) } }
+                        LazyColumn { items(r.size) { TrackRow(r, it) } }
                     }
                     3 -> {
                         Button({ newPl = true }, Modifier.padding(top = 8.dp)) { Text("New playlist") }
