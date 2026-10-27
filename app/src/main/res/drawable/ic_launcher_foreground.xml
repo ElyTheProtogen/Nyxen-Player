@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- cyan neon ring: soft glow layers, then bright core -->
+    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#2200E5FF" android:strokeWidth="11"/>
+    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#4400E5FF" android:strokeWidth="7"/>
+    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#AA00E5FF" android:strokeWidth="3.4"/>
+    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#D9FBFF" android:strokeWidth="1.4"/>
+    <!-- neon N -->
+    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#26C043FF" android:strokeWidth="13" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#55C043FF" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#C043FF" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#FBE6FF" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+</vector>
