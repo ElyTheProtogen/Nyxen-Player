@@ -15,7 +15,7 @@ data class Track(
 @Entity(tableName = "playlist_tracks", primaryKeys = ["playlistId", "trackId"])
 data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: Int)
 
-@Dao interface Dao {
+@Dao interface MusicDao {
     @Query("SELECT * FROM tracks") fun tracks(): Flow<List<Track>>
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insert(t: Track): Long // -1 = duplicate
     @Update suspend fun update(t: Track)
@@ -33,7 +33,7 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
 }
 @Database(entities = [Track::class, Playlist::class, PlaylistTrack::class], version = 1, exportSchema = false)
 abstract class Db : RoomDatabase() {
-    abstract fun dao(): Dao
+    abstract fun dao(): MusicDao
     companion object {
         @Volatile private var i: Db? = null
         fun get(c: Context) = i ?: synchronized(this) {
