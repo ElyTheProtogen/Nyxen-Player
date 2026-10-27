@@ -19,7 +19,7 @@ fun Studio() {
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Audio Studio", style = MaterialTheme.typography.headlineSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Effects", Modifier.weight(1f)); Switch(en, { en = it; AudioFx.setEnabled(it) })
+            Text("Effects", Modifier.weight(1f)); Switch(en, { en = it; AudioFx.setFxEnabled(it) })
         }
         if (eq == null) { Text("Start playing a track once to initialise the effects, or this device does not support them."); return }
         Text("Presets")
