@@ -26,6 +26,13 @@ import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.mono.player.ui.SearchScreen
+import com.mono.player.ui.Banner
+import com.mono.player.ui.NowPlayingScreen
+import com.mono.player.ui.SplashScreen
+import com.mono.player.ui.WelcomeScreen
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.media3.common.PlaybackException
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.mono.player.ui.SettingsScreen
@@ -64,6 +71,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun onStop() { AudioFx.save(this); super.onStop() }
+
+    // Back on Home finishes the activity; here we also stop playback and end the process so nothing keeps running.
+    override fun onDestroy() {
+        val quitting = isFinishing && !isChangingConfigurations
+        super.onDestroy()
+        if (quitting) {
+            stopService(android.content.Intent(this, PlaybackService::class.java))
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
+    }
+
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
         enableEdgeToEdge(
@@ -84,6 +103,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+fun android.content.Context.findActivity(): android.app.Activity? {
+    var c: android.content.Context = this
+    while (c is android.content.ContextWrapper) { if (c is android.app.Activity) return c; c = c.baseContext }
+    return null
 }
 
 fun mi(t: Track) = MediaItem.Builder().setMediaId("${t.id}").setUri(t.uri)
@@ -125,14 +150,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var c by remember { mutableStateOf<MediaController?>(null) }
     var mode by remember { mutableStateOf(PlayMode.entries[prefs.getInt("mode", 0).coerceIn(0, 3)]) }
     var msg by remember { mutableStateOf<String?>(null) }
-    val pager = rememberPagerState(1) { 5 }
+    val pager = rememberPagerState(prefs.getInt("page", 1).coerceIn(0, 4)) { 5 }
     val tab = pager.currentPage
     var full by remember { mutableStateOf(false) }
     var curId by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf(false) }
     var pos by remember { mutableLongStateOf(0L) }
-    var sort by remember { mutableStateOf("Title") }
-    var asc by remember { mutableStateOf(true) }
+    var sort by remember { mutableStateOf(prefs.getString("sort", "Title") ?: "Title") }
+    var asc by remember { mutableStateOf(prefs.getBoolean("asc", true)) }
     var query by remember { mutableStateOf("") }
     var addFor by remember { mutableStateOf<Track?>(null) }
     var showQueue by remember { mutableStateOf(false) }
@@ -140,28 +165,42 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
 
         var autoImport by remember { mutableStateOf(prefs.getBoolean("auto", true)) }
     var sub by remember { mutableIntStateOf(0) }
-    var speed by remember { mutableFloatStateOf(1f) }
+    var speed by remember { mutableFloatStateOf(prefs.getFloat("speed", 1f)) }
     var sleepEnd by remember { mutableLongStateOf(0L) }
     var restored by remember { mutableStateOf(false) }
+    var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
+    var profEmail by remember { mutableStateOf(prefs.getString("pemail", "") ?: "") }
+    var booted by remember { mutableStateOf(false) }
+    var greeted by remember { mutableStateOf(false) }
+    var started by remember { mutableStateOf(false) }
     var askPerm by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun askNotif() { if (Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) }
-    fun rescan() { if (scanning) return; scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; msg = "Scan finished: ${r.added} new songs" } }
+    fun rescan(manual: Boolean = false) { if (scanning) return; scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; if (r.added > 0) msg = "Added ${r.added} new songs" else if (manual) msg = "No new songs found" } }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) rescan() else msg = "Permission denied. You can still add songs with Import music."
+        if (ok) rescan(true) else msg = "Permission denied. You can still add songs with Import music."
         askNotif()
     }
     fun hasAudioPerm() = ContextCompat.checkSelfPermission(ctx, audioPerm) == PackageManager.PERMISSION_GRANTED
-    fun requestScan() { if (hasAudioPerm()) rescan() else askPerm = true }
+    fun requestScan() { if (hasAudioPerm()) rescan(true) else askPerm = true }
+    fun wipeAll() { scope.launch {
+        c?.run { stop(); clearMediaItems() }
+        dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists()
+        prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
+        setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
+        profName = ""; profEmail = ""; sub = 0; restored = false; curId = null; greeted = false; started = false
+        pager.scrollToPage(1)
+    } }
     LaunchedEffect(Unit) {
-        if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport) rescan(); askNotif() }
+        
         val f = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))).buildAsync()
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
             m.addListener(object : Player.Listener {
                 override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() } }
+                override fun onPlayerError(error: PlaybackException) { msg = "Couldn't play this file. It may have been moved or deleted." }
                 override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) prefs.edit().putLong("lastPos", m.currentPosition).apply() }
             })
         }, MoreExecutors.directExecutor())
@@ -173,16 +212,37 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
         if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); restored = true; curId = "${tracks[i].id}" }
     }
-    LaunchedEffect(playing, c) { while (playing) { pos = c?.currentPosition ?: 0; delay(500) }; pos = c?.currentPosition ?: pos }
+    LaunchedEffect(playing, c) { var n = 0; while (playing) { pos = c?.currentPosition ?: 0; if (++n % 10 == 0) prefs.edit().putLong("lastPos", pos).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
     LaunchedEffect(sleepEnd) { if (sleepEnd > 0) { delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0)); c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished" } }
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
+    LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
+    LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(1300); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
+    LaunchedEffect(booted, profName) {
+        if (booted && profName.isNotBlank()) {
+            if (!greeted) {
+                greeted = true
+                val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                msg = if (prefs.getBoolean("firstDone", false)) "${if (h < 12) "Good morning" else if (h < 18) "Good afternoon" else "Good evening"}, $profName" else "Welcome to NyxenPlayer, $profName!"
+                prefs.edit().putBoolean("firstDone", true).apply()
+            }
+            if (!started) { started = true; if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport) rescan(); askNotif() } }
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         scope.launch { val r = Importer.import(ctx, uris); msg = "Added ${r.added}, duplicates ${r.duplicates}, failed ${r.failed}" }
     }
     val cur = tracks.firstOrNull { "${it.id}" == curId }
-    fun play(list: List<Track>, i: Int) { c?.run { setMediaItems(list.map(::mi), i, 0); mode.apply(this); prepare(); play() } }
+    fun closeApp() {
+        prefs.edit().putLong("lastPos", c?.currentPosition ?: 0L).apply()
+        AudioFx.save(ctx)
+        c?.pause()
+        ctx.findActivity()?.finishAndRemoveTask()
+    }
+    BackHandler(tab != 0) { scope.launch { pager.animateScrollToPage(0) } }
+    BackHandler(tab == 0) { closeApp() }
+    fun play(list: List<Track>, i: Int) { if (c == null) { msg = "Player is still starting, try again"; return }; c?.run { setMediaItems(list.map(::mi), i, 0); mode.apply(this); prepare(); play() } }
 
     val sorted = remember(tracks, sort, asc) {
         val cmp: Comparator<Track> = when (sort) {
@@ -257,11 +317,11 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                             EmbossedIconButton({ picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import", Modifier.padding(horizontal = 18.dp)) }
                             var sm by remember { mutableStateOf(false) }
                             EmbossedIconButton({ sm = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Sort: $sort", Modifier.padding(horizontal = 16.dp)) }
-                            DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Duration", "Added", "Plays").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; sm = false }) } }
+                            DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Duration", "Added", "Plays").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; prefs.edit().putString("sort", o).apply(); sm = false }) } }
                             EmbossedIconButton({ if (sorted.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(sorted, kotlin.random.Random.nextInt(sorted.size)) } }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle all") }
-                            EmbossedIconButton({ asc = !asc }, Modifier.size(40.dp)) { val rot by animateFloatAsState(if (asc) 0f else 180f, tween(250), label = "sort"); Icon(Icons.Default.ArrowUpward, "Toggle sort direction", Modifier.rotate(rot)) }
+                            EmbossedIconButton({ asc = !asc; prefs.edit().putBoolean("asc", asc).apply() }, Modifier.size(40.dp)) { val rot by animateFloatAsState(if (asc) 0f else 180f, tween(250), label = "sort"); Icon(Icons.Default.ArrowUpward, "Toggle sort direction", Modifier.rotate(rot)) }
                         }
-                        AnimatedVisibility(msg != null) { Text(msg ?: "", Modifier.padding(vertical = 8.dp)) }
+                        
                         AnimatedVisibility(scanning) { LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 4.dp)) }
                         AnimatedVisibility(tracks.isEmpty()) { Text("Your library is empty. Import music to begin.", Modifier.padding(top = 32.dp)) }
                         LazyColumn { items(sorted.size, key = { sorted[it].id }) { Box(Modifier.animateItem()) { TrackRow(sorted, it) } } }
@@ -276,49 +336,37 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     }
                     else -> SettingsScreen(sub, { sub = it }, themeIdx, { setTheme(it); prefs.edit().putInt("theme", it).apply() },
                         autoImport, { autoImport = it; prefs.edit().putBoolean("auto", it).apply(); if (it) requestScan() }, scanning, { requestScan() },
-                        haptics, { setHaptics(it); prefs.edit().putBoolean("haptics", it).apply() }, speed, { speed = it },
+                        haptics, { setHaptics(it); prefs.edit().putBoolean("haptics", it).apply() }, speed, { speed = it; prefs.edit().putFloat("speed", it).apply() },
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
-                        { min -> sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L })
+                        { min -> sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
+                        profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
+                        { profName = ""; profEmail = ""; prefs.edit().remove("pname").remove("pemail").apply(); greeted = false; sub = 0 }, { wipeAll() })
                 }
             }
             }
         }
 
-        AnimatedVisibility(full && cur != null, enter = slideInVertically(tween(380)) { it } + fadeIn(tween(380)), exit = slideOutVertically(tween(300)) { it } + fadeOut(tween(300))) {
-        val cur = cur ?: return@AnimatedVisibility
-        Surface(Modifier.fillMaxSize(), color = Color(0xEE000000)) {
-            Column(Modifier.systemBarsPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(Modifier.fillMaxWidth()) {
-                    EmbossedIconButton({ full = false }, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
-                    Spacer(Modifier.weight(1f))
-                    EmbossedIconButton({ full = false; sub = 2; scope.launch { pager.animateScrollToPage(4) } }, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
-                    EmbossedIconButton({ showQueue = true }, Modifier.size(44.dp)) { Icon(Icons.Default.QueueMusic, "Queue") }
-                }
-                val artScale by animateFloatAsState(if (playing) 1f else 0.86f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "art")
-                Crossfade(cur.id, animationSpec = tween(450), label = "artx") { id -> Art(tracks.firstOrNull { it.id == id }, Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp).scale(artScale).shadow(28.dp, RoundedCornerShape(16.dp), ambientColor = accent, spotColor = accent)) }
-                Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    NowPlayingBars(playing, Modifier.size(24.dp)); Spacer(Modifier.width(10.dp))
-                    Crossfade(cur.id, animationSpec = tween(350), label = "ttl") { id -> Text(tracks.firstOrNull { it.id == id }?.title ?: "", style = MaterialTheme.typography.headlineSmall, color = Color.White, maxLines = 1) } }
-                Text("${cur.artist} · ${cur.album}", maxLines = 1, color = Color.White); Text("Source: Local file", style = MaterialTheme.typography.bodySmall, color = Color.White)
-                val d = (c?.duration ?: 0L).takeIf { it > 0 } ?: cur.durationMs
-                var drag by remember { mutableStateOf<Float?>(null) }
-                val prog by animateFloatAsState((pos.toFloat() / d.coerceAtLeast(1)).coerceIn(0f, 1f), tween(500, easing = LinearEasing), label = "seek")
-                Slider(drag ?: prog, { drag = it },
-                    onValueChangeFinished = { drag?.let { c?.seekTo((it * d).toLong()); pos = (it * d).toLong() }; drag = null })
-                Row(Modifier.fillMaxWidth()) { Text(fmt(pos), color = Color.White); Spacer(Modifier.weight(1f)); Text(fmt(d), color = Color.White) }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EmbossedIconButton({ mode = mode.next(); prefs.edit().putInt("mode", mode.ordinal).apply(); c?.let { mode.apply(it) } }, Modifier.size(48.dp)) {
-                        Crossfade(mode, label = "mode") { m -> Icon(when (m) { PlayMode.REPEAT_ALL -> Icons.Default.Repeat; PlayMode.REPEAT_ONE -> Icons.Default.RepeatOne
-                            PlayMode.IN_ORDER -> Icons.Default.ArrowRightAlt; PlayMode.SHUFFLE -> Icons.Default.Shuffle }, "Playback mode: ${m.name}") } }
-                    EmbossedIconButton({ c?.seekToPreviousMediaItem() }, Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous") }
-                    EmbossedIconButton({ c?.let { if (it.isPlaying) it.pause() else it.play() } }, Modifier.size(72.dp)) { Crossfade(playing, label = "pp") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, "Play or pause") } }
-                    EmbossedIconButton({ c?.seekToNextMediaItem() }, Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next") }
-                    EmbossedIconButton({ scope.launch { dao.setFav(cur.id, !cur.favorite) } }, Modifier.size(48.dp)) { Crossfade(cur.favorite, label = "fav") { f -> Icon(if (f) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorite", Modifier.scale(animateFloatAsState(if (f) 1.25f else 1f, spring(Spring.DampingRatioHighBouncy), label = "pop").value)) } }
-                }
-                Crossfade(mode, label = "modeText") { m -> Text(m.name.replace('_', ' '), style = MaterialTheme.typography.bodySmall, color = Color.White) }
-            }
+        AnimatedVisibility(full && cur != null, enter = slideInVertically(tween(420)) { it } + fadeIn(tween(420)), exit = slideOutVertically(tween(320)) { it } + fadeOut(tween(320))) {
+            val t = cur ?: return@AnimatedVisibility
+            NowPlayingScreen(
+                track = t, tracks = tracks, playing = playing, pos = pos, duration = ((c?.duration ?: 0L).takeIf { it > 0 } ?: t.durationMs),
+                mode = mode,
+                nextTitle = c?.let { m -> if (m.hasNextMediaItem()) m.getMediaItemAt(m.nextMediaItemIndex).mediaMetadata.title?.toString() else null },
+                onClose = { full = false }, onPlayPause = { c?.let { if (it.isPlaying) it.pause() else it.play() } },
+                onNext = { c?.seekToNextMediaItem() }, onPrev = { c?.seekToPreviousMediaItem() },
+                onSeek = { ms -> c?.seekTo(ms); pos = ms },
+                onMode = { mode = mode.next(); prefs.edit().putInt("mode", mode.ordinal).apply(); c?.let { mode.apply(it) } },
+                onFavorite = { scope.launch { dao.setFav(t.id, !t.favorite) } },
+                onQueue = { showQueue = true },
+                onStudio = { full = false; sub = 2; scope.launch { pager.animateScrollToPage(4) } },
+                onAddToPlaylist = { addFor = t }
+            )
         }
+        Banner(msg, Modifier.align(Alignment.TopCenter))
+        AnimatedVisibility(booted && profName.isBlank(), enter = fadeIn(), exit = fadeOut(tween(500))) {
+            WelcomeScreen { n, e -> profName = n; profEmail = e; prefs.edit().putString("pname", n).putString("pemail", e).apply() }
         }
+        AnimatedVisibility(!booted, exit = fadeOut(tween(600))) { SplashScreen() }
     }
 
     BackHandler(full) { full = false }
