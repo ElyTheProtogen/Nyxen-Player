@@ -33,6 +33,8 @@ import com.mono.player.GlassCard
 import com.mono.player.LocalAccent
 import com.mono.player.LocalHaptics
 import com.mono.player.Reveal
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Text is always white. Light-ended gradients get a dark tint (scrim) so white text stays readable. */
 data class AppTheme(val name: String, val top: Color, val mid: Color, val bottom: Color, val scrim: Float, val accent: Color)
@@ -93,7 +95,7 @@ private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> 
                     .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
                 Alignment.Center
             ) {
-                androidx.compose.animation.AnimatedVisibility(selected, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(), exit = scaleOut() + fadeOut()) {
+                AnimatedVisibility(selected, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(), exit = scaleOut() + fadeOut()) {
                     Icon(Icons.Default.Check, "Selected theme", tint = Color.White)
                 }
             }
@@ -108,10 +110,11 @@ fun SettingsScreen(
     sub: Int, onSub: (Int) -> Unit, themeIdx: Int, onTheme: (Int) -> Unit,
     autoImport: Boolean, onAuto: (Boolean) -> Unit, scanning: Boolean, onRescan: () -> Unit,
     haptics: Boolean, onHaptics: (Boolean) -> Unit, speed: Float, onSpeed: (Float) -> Unit,
-    sleepAt: String, onSleep: (Int) -> Unit
+    sleepAt: String, onSleep: (Int) -> Unit,
+    profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit
 ) {
     BackHandler(sub != 0) { onSub(0) }
-    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About")
+    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account")
     AnimatedContent(sub, transitionSpec = {
         if (targetState > initialState)
             (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300)))
@@ -125,6 +128,7 @@ fun SettingsScreen(
             }
             when (s) {
                 0 -> Column(Modifier.verticalScroll(rememberScrollState())) {
+                    MenuRow(Icons.Default.Person, profName.ifBlank { "Account" }, profEmail.ifBlank { "Manage your profile" }, 0) { onSub(6) }
                     MenuRow(Icons.Default.Palette, "Appearance", "Theme: ${Themes[themeIdx].name}", 40) { onSub(1) }
                     MenuRow(Icons.Default.Equalizer, "Audio Studio", "Equalizer, bass, reverb", 90) { onSub(2) }
                     MenuRow(Icons.Default.Speed, "Playback", "Speed, sleep timer, haptics", 140) { onSub(4) }
@@ -186,6 +190,7 @@ fun SettingsScreen(
                     }
                     Reveal(140) { Text("Songs you remove from the library come back on the next scan. Files you imported by hand are kept.", style = MaterialTheme.typography.bodySmall) }
                 }
+                6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe)
                 else -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
@@ -199,4 +204,55 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun AccountScreen(name: String, email: String, onSave: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit) {
+    val a = LocalAccent.current
+    val scope = rememberCoroutineScope()
+    var n by remember { mutableStateOf(name) }
+    var e by remember { mutableStateOf(email) }
+    var confirm by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Reveal(0) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(64.dp).shadow(12.dp, CircleShape, ambientColor = a, spotColor = a).clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(lerp(a, Color.White, .2f), lerp(a, Color.Black, .5f)))), Alignment.Center) {
+                        Text((name.firstOrNull() ?: 'N').uppercase(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(name.ifBlank { "Guest" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(email.ifBlank { "No email added" }, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        Reveal(70) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                OutlinedTextField(n, { n = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(e, { e = it }, Modifier.fillMaxWidth(), label = { Text("Email (optional)") }, singleLine = true)
+                Spacer(Modifier.height(12.dp))
+                EmbossedIconButton({ onSave(n.trim(), e.trim()); saved = true; scope.launch { delay(1500); saved = false } }, Modifier.fillMaxWidth().height(48.dp), RoundedCornerShape(24.dp)) {
+                    Crossfade(saved, label = "sv") { ok -> Text(if (ok) "Saved" else "Save changes", fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        Reveal(140) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Text("Your profile is stored on this device only. There is no password and nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(10.dp))
+                EmbossedIconButton(onSignOut, Modifier.fillMaxWidth().height(46.dp), RoundedCornerShape(23.dp)) { Text("Sign out") }
+                Spacer(Modifier.height(6.dp))
+                TextButton({ confirm = true }, Modifier.fillMaxWidth()) { Text("Delete all my data", color = Color(0xFFFF6B6B)) }
+            }
+        }
+    }
+    if (confirm) AlertDialog({ confirm = false }, title = { Text("Delete all data?") },
+        text = { Text("This removes your library, playlists, favorites, play counts, settings and profile from NyxenPlayer. Your music files are not touched.") },
+        confirmButton = { TextButton({ confirm = false; onWipe() }) { Text("Delete", color = Color(0xFFFF6B6B)) } },
+        dismissButton = { TextButton({ confirm = false }) { Text("Cancel") } })
 }
