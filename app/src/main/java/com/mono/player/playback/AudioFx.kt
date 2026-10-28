@@ -60,6 +60,11 @@ object AudioFx {
     fun deleteCustom(c: Context, name: String) { val all = customs(c); all.remove(name); writeCustoms(c, all) }
     fun useLevels(a: IntArray) { for (i in a.indices) if (i < levels.size) levels[i] = a[i]; apply() }
 
+    fun resetAll(c: Context) {
+        levels.fill(0); bassStr = 0; virtStr = 0; revPreset = 0; enabled = true; current = "Flat"
+        c.getSharedPreferences("fx", Context.MODE_PRIVATE).edit().clear().apply(); apply()
+    }
+
     fun setFxEnabled(v: Boolean) { enabled = v; apply() }
     fun setLevel(b: Int, mB: Int) { levels[b] = mB; current = "Custom"; apply() }
     fun range(): Pair<Int, Int> = eq?.bandLevelRange?.let { it[0].toInt() to it[1].toInt() } ?: (-1500 to 1500)
