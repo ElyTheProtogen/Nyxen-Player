@@ -205,7 +205,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             })
         }, MoreExecutors.directExecutor())
     }
-    DisposableEffect(c) { onDispose { c?.release() } }
+    DisposableEffect(c) { val old = c; onDispose { old?.release() } }
     LaunchedEffect(c, tracks.size) {
         val m = c ?: return@LaunchedEffect
         if (restored || m.mediaItemCount > 0 || tracks.isEmpty()) return@LaunchedEffect
