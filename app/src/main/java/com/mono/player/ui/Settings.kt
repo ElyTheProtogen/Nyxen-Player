@@ -95,7 +95,7 @@ private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> 
                     .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
                 Alignment.Center
             ) {
-                AnimatedVisibility(selected, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(), exit = scaleOut() + fadeOut()) {
+                androidx.compose.animation.AnimatedVisibility(selected, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(), exit = scaleOut() + fadeOut()) {
                     Icon(Icons.Default.Check, "Selected theme", tint = Color.White)
                 }
             }
