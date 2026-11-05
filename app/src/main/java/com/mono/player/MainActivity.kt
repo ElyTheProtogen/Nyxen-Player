@@ -27,6 +27,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.mono.player.ui.SearchScreen
 import com.mono.player.ui.Banner
+import com.mono.player.ui.Carousel
+import com.mono.player.ui.EmptyState
+import com.mono.player.ui.FloatingNav
+import com.mono.player.ui.GroupCard
+import com.mono.player.ui.HeroCard
+import com.mono.player.ui.HomeHeader
+import com.mono.player.ui.MiniPlayer
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import com.mono.player.ui.NowPlayingScreen
 import com.mono.player.ui.SplashScreen
 import com.mono.player.ui.WelcomeScreen
@@ -116,11 +134,13 @@ fun mi(t: Track) = MediaItem.Builder().setMediaId("${t.id}").setUri(t.uri)
 
 fun fmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%d:%02d".format(s / 60, s % 60) }
 
-private object ArtCache { val lru = LruCache<Long, ImageBitmap>(48) }
+private object ArtCache {
+    val lru = object : LruCache<Long, ImageBitmap>(24 * 1024 * 1024) { override fun sizeOf(key: Long, value: ImageBitmap) = value.width * value.height * 4 }
+}
 
 /** Artwork is loaded lazily from the database (not with the track list) and cached, so lists stay light. */
 @Composable
-fun Art(t: Track?, mod: Modifier) {
+fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
     val dao = Db.get(LocalContext.current).dao()
     val bmp by produceState<ImageBitmap?>(t?.let { ArtCache.lru.get(it.id) }, t?.id) {
         val id = t?.id
@@ -132,7 +152,7 @@ fun Art(t: Track?, mod: Modifier) {
             runCatching { dao.artwork(id)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } }.getOrNull()
         }?.also { ArtCache.lru.put(id, it) }
     }
-    Box(mod.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(.12f)), Alignment.Center) {
+    Box(mod.clip(RoundedCornerShape(corner)).background(Color.White.copy(.12f)), Alignment.Center) {
         val b = bmp
         if (b != null) Image(b, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(.6f))
@@ -173,12 +193,15 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var booted by remember { mutableStateOf(false) }
     var greeted by remember { mutableStateOf(false) }
     var started by remember { mutableStateOf(false) }
+    var libCat by remember { mutableIntStateOf(prefs.getInt("libcat", 0)) }
+    var openGroup by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
+    var miniProg by remember { mutableFloatStateOf(0f) }
     var askPerm by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun askNotif() { if (Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) }
-    fun rescan(manual: Boolean = false) { if (scanning) return; scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; if (r.added > 0) msg = "Added ${r.added} new songs" else if (manual) msg = "No new songs found" } }
+    fun rescan(manual: Boolean = false) { if (scanning) return; scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; prefs.edit().putLong("lastScan", System.currentTimeMillis()).apply(); if (r.added > 0) msg = "Added ${r.added} new songs" else if (manual) msg = "No new songs found" } }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) rescan(true) else msg = "Permission denied. You can still add songs with Import music."
         askNotif()
@@ -212,13 +235,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
         if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); restored = true; curId = "${tracks[i].id}" }
     }
-    LaunchedEffect(playing, c) { var n = 0; while (playing) { pos = c?.currentPosition ?: 0; if (++n % 10 == 0) prefs.edit().putLong("lastPos", pos).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
+    LaunchedEffect(full) { if (full) pos = c?.currentPosition ?: 0 }
+    LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
     LaunchedEffect(sleepEnd) { if (sleepEnd > 0) { delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0)); c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished" } }
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
     LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
-    LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(1300); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
+    LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(700); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
     LaunchedEffect(booted, profName) {
         if (booted && profName.isNotBlank()) {
             if (!greeted) {
@@ -227,13 +251,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                 msg = if (prefs.getBoolean("firstDone", false)) "${if (h < 12) "Good morning" else if (h < 18) "Good afternoon" else "Good evening"}, $profName" else "Welcome to NyxenPlayer, $profName!"
                 prefs.edit().putBoolean("firstDone", true).apply()
             }
-            if (!started) { started = true; if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport) rescan(); askNotif() } }
+            if (!started) { started = true; if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport && System.currentTimeMillis() - prefs.getLong("lastScan", 0L) > 5 * 60_000L) rescan(); askNotif() } }
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         scope.launch { val r = Importer.import(ctx, uris); msg = "Added ${r.added}, duplicates ${r.duplicates}, failed ${r.failed}" }
     }
-    val cur = tracks.firstOrNull { "${it.id}" == curId }
+    val curIdL = curId?.toLongOrNull()
+    val cur = remember(tracks, curIdL) { tracks.firstOrNull { it.id == curIdL } }
     fun closeApp() {
         prefs.edit().putLong("lastPos", c?.currentPosition ?: 0L).apply()
         AudioFx.save(ctx)
@@ -255,10 +280,30 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
 
     @Composable fun TrackRow(list: List<Track>, i: Int) {
         val t = list[i]; var menu by remember { mutableStateOf(false) }
-        ListItem({ Row(verticalAlignment = Alignment.CenterVertically) { if ("${t.id}" == curId) { NowPlayingBars(playing, Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)) }; Text(t.title, maxLines = 1) } }, Modifier.clickable { play(list, i) },
-            supportingContent = { Text("${t.artist} · ${t.album} · Local", maxLines = 1) },
-            leadingContent = { Art(t, Modifier.size(48.dp)) },
-            trailingContent = {
+        val isCur = t.id == curIdL
+        val shape = RoundedCornerShape(20.dp)
+        val bg by animateColorAsState(if (isCur) accent.copy(alpha = .22f) else Color.Black.copy(alpha = .28f), tween(300), label = "rowbg")
+        val src = remember { MutableInteractionSource() }
+        val pressed by src.collectIsPressedAsState()
+        val sc by animateFloatAsState(if (pressed) 0.97f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "rowpress")
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(bg)
+                .border(1.dp, if (isCur) accent.copy(alpha = .7f) else Color.White.copy(alpha = .08f), shape)
+                .clickable(src, null) { play(list, i) }.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(54.dp)) {
+                Art(t, Modifier.fillMaxSize())
+                if (isCur) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = .45f)), Alignment.Center) { NowPlayingBars(playing, Modifier.size(22.dp)) }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${t.artist} · ${t.album}", fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (t.favorite) Icon(Icons.Default.Favorite, "Favorite", Modifier.size(16.dp), tint = accent)
+            Text(fmt(t.durationMs), Modifier.padding(horizontal = 8.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
+            Box {
                 IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, "More options") }
                 DropdownMenu(menu, { menu = false }) {
                     DropdownMenuItem({ Text("Play next") }, { c?.addMediaItem((c?.currentMediaItemIndex ?: -1) + 1, mi(t)); menu = false })
@@ -267,7 +312,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     DropdownMenuItem({ Text("Add to playlist") }, { addFor = t; menu = false })
                     DropdownMenuItem({ Text("Remove from library") }, { scope.launch { dao.delete(t) }; menu = false })
                 }
-            }, colors = ListItemDefaults.colors(containerColor = animateColorAsState(if ("${t.id}" == curId) Color.White.copy(.14f) else Color.Transparent, tween(300), label = "rowbg").value))
+            }
+        }
     }
 
     val th = Themes[themeIdx]
@@ -275,64 +321,113 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     val g1 by animateColorAsState(th.mid, tween(700), label = "g1")
     val g2 by animateColorAsState(th.bottom, tween(700), label = "g2")
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(g0, g1, g2))).background(Color.Black.copy(alpha = th.scrim))) {
-        AuroraGlow(accent, Modifier.fillMaxSize())
+        AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
         Scaffold(containerColor = Color.Transparent, bottomBar = {
-            Column(Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
-                AnimatedVisibility(cur != null, enter = slideInVertically(tween(350)) { it } + fadeIn(tween(350)), exit = slideOutVertically(tween(250)) { it } + fadeOut(tween(250))) {
-                val cur = cur ?: return@AnimatedVisibility
-                Surface(Modifier.fillMaxWidth().clickable { full = true }, color = Color.Black.copy(.6f)) {
-                    Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Art(cur, Modifier.size(44.dp)); Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) { Text(cur.title, maxLines = 1); Text(cur.artist, maxLines = 1, style = MaterialTheme.typography.bodySmall) }
-                        NowPlayingBars(playing, Modifier.size(20.dp)); EmbossedIconButton({ c?.let { if (it.isPlaying) it.pause() else it.play() } }, Modifier.size(44.dp)) { Crossfade(playing, label = "pp") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, "Play or pause") } }
-                    }
-                }
-                }
-                NavigationBar(containerColor = Color.Black.copy(.6f)) {
-                    listOf("Home" to Icons.Default.Home, "Library" to Icons.Default.LibraryMusic, "Search" to Icons.Default.Search,
-                        "Playlists" to Icons.Default.QueueMusic, "Settings" to Icons.Default.Settings).forEachIndexed { i, (n, ic) ->
-                        NavigationBarItem(tab == i, { scope.launch { pager.animateScrollToPage(i) } }, { Icon(ic, n, Modifier.scale(animateFloatAsState(if (tab == i) 1.2f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "nav").value)) }, label = { Text(n) })
-                    }
-                }
+            Column(Modifier.navigationBarsPadding().padding(horizontal = 12.dp).padding(bottom = 8.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
+                MiniPlayer(cur, playing, { miniProg }, { full = true }, { c?.let { if (it.isPlaying) it.pause() else it.play() } },
+                    { c?.seekToNextMediaItem() }, { c?.seekToPreviousMediaItem() })
+                FloatingNav(tab) { i -> scope.launch { pager.animateScrollToPage(i) } }
             }
         }) { pad ->
             HorizontalPager(pager, Modifier.padding(pad), beyondViewportPageCount = 1) { page ->
             Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).statusBarsPadding().graphicsLayer {
-                val o = ((pager.currentPage - page) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
-                alpha = 1f - o * 0.6f; scaleX = 1f - o * 0.08f; scaleY = scaleX }) {
+                val off = (pager.currentPage - page) + pager.currentPageOffsetFraction
+                val o = off.absoluteValue.coerceIn(0f, 1f)
+                alpha = 1f - o * 0.6f; scaleX = 1f - o * 0.08f; scaleY = scaleX
+                cameraDistance = 14f * density; rotationY = off * 14f }) {
                 when (page) {
                     0 -> {
-                        val sections = remember(tracks) { listOf(
-                            "Recently played" to tracks.filter { it.lastPlayed > 0 }.sortedByDescending { it.lastPlayed }.take(10),
-                            "Most played" to tracks.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(10),
-                            "Favorites" to tracks.filter { it.favorite },
-                            "Recently added" to tracks.sortedByDescending { it.addedAt }.take(10)) }
-                        AnimatedVisibility(tracks.isEmpty()) { Text("Import music in the Library tab to get started.", Modifier.padding(top = 32.dp)) }
-                        LazyColumn { sections.forEach { (h, l) -> if (l.isNotEmpty()) {
-                            item(key = "h-$h") { Text(h, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp).animateItem()) }
-                            items(l.size, key = { "$h-${l[it].id}" }) { Box(Modifier.animateItem()) { TrackRow(l, it) } } } } }
+                        val recent = remember(tracks) { tracks.filter { it.lastPlayed > 0 }.sortedByDescending { it.lastPlayed }.take(12) }
+                        val most = remember(tracks) { tracks.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(12) }
+                        val favs = remember(tracks) { tracks.filter { it.favorite }.take(24) }
+                        val added = remember(tracks) { tracks.sortedByDescending { it.addedAt }.take(12) }
+                        val hero = cur ?: recent.firstOrNull()
+                        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                            item(key = "hdr") { HomeHeader(profName, tracks.size) { sub = 6; scope.launch { pager.animateScrollToPage(4) } } }
+                            if (tracks.isEmpty()) item(key = "empty") { EmptyState("Your library is empty", "Add songs to start listening", "Import music") { picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) } }
+                            else {
+                                hero?.let { h -> item(key = "hero") { HeroCard(h, h.id == curIdL, playing) { val l = recent.ifEmpty { tracks }; play(l, l.indexOfFirst { it.id == h.id }.coerceAtLeast(0)) } } }
+                                if (recent.isNotEmpty()) item(key = "c-recent") { Carousel("Recently played", recent, curIdL, playing) { i -> play(recent, i) } }
+                                if (most.isNotEmpty()) item(key = "c-most") { Carousel("Most played", most, curIdL, playing) { i -> play(most, i) } }
+                                if (favs.isNotEmpty()) item(key = "c-favs") { Carousel("Favorites", favs, curIdL, playing) { i -> play(favs, i) } }
+                                item(key = "c-added") { Carousel("Recently added", added, curIdL, playing) { i -> play(added, i) } }
+                            }
+                        }
                     }
                     1 -> {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BackHandler(openGroup != null) { openGroup = null }
+                        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             EmbossedIconButton({ picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import", Modifier.padding(horizontal = 18.dp)) }
                             var sm by remember { mutableStateOf(false) }
-                            EmbossedIconButton({ sm = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Sort: $sort", Modifier.padding(horizontal = 16.dp)) }
-                            DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Duration", "Added", "Plays").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; prefs.edit().putString("sort", o).apply(); sm = false }) } }
+                            Box {
+                                EmbossedIconButton({ sm = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Sort: $sort", Modifier.padding(horizontal = 16.dp)) }
+                                DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Duration", "Added", "Plays").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; prefs.edit().putString("sort", o).apply(); sm = false }) } }
+                            }
                             EmbossedIconButton({ if (sorted.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(sorted, kotlin.random.Random.nextInt(sorted.size)) } }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle all") }
                             EmbossedIconButton({ asc = !asc; prefs.edit().putBoolean("asc", asc).apply() }, Modifier.size(40.dp)) { val rot by animateFloatAsState(if (asc) 0f else 180f, tween(250), label = "sort"); Icon(Icons.Default.ArrowUpward, "Toggle sort direction", Modifier.rotate(rot)) }
                         }
-                        
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Tracks", "Albums", "Artists", "Genres", "Favorites").forEachIndexed { i, n ->
+                                FilterChip(libCat == i, { libCat = i; openGroup = null; prefs.edit().putInt("libcat", i).apply() }, { Text(n) })
+                            }
+                        }
                         AnimatedVisibility(scanning) { LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 4.dp)) }
-                        AnimatedVisibility(tracks.isEmpty()) { Text("Your library is empty. Import music to begin.", Modifier.padding(top = 32.dp)) }
-                        LazyColumn { items(sorted.size, key = { sorted[it].id }) { Box(Modifier.animateItem()) { TrackRow(sorted, it) } } }
+                        val groups = remember(tracks, libCat) {
+                            if (libCat in 1..3) tracks.groupBy { when (libCat) { 1 -> it.album; 2 -> it.artist; else -> it.genre } }.toList().sortedBy { it.first.lowercase() } else emptyList()
+                        }
+                        val favList = remember(tracks) { tracks.filter { it.favorite } }
+                        if (tracks.isEmpty()) EmptyState("Your library is empty", "Add songs to start listening", "Import music") { picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) }
+                        else AnimatedContent(Pair(libCat, openGroup?.first), transitionSpec = {
+                            (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 14 }) togetherWith fadeOut(tween(160))
+                        }, label = "lib") { _ ->
+                            val og = openGroup
+                            if (og != null) Column {
+                                Row(Modifier.padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    EmbossedIconButton({ openGroup = null }, Modifier.size(40.dp)) { Icon(Icons.Default.ArrowBack, "Back") }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) { Text(og.first, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${og.second.size} songs", fontSize = 12.sp, color = Color.White.copy(alpha = .7f)) }
+                                    EmbossedIconButton({ play(og.second, 0) }, Modifier.height(40.dp), RoundedCornerShape(20.dp)) { Text("Play", Modifier.padding(horizontal = 18.dp)) }
+                                }
+                                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) { items(og.second.size, key = { og.second[it].id }) { Box(Modifier.animateItem()) { TrackRow(og.second, it) } } }
+                            } else if (libCat == 0) LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) { items(sorted.size, key = { sorted[it].id }) { Box(Modifier.animateItem()) { TrackRow(sorted, it) } } }
+                            else if (libCat == 4) {
+                                if (favList.isEmpty()) EmptyState("No favorites yet", "Tap the heart on a song to add it here")
+                                else LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) { items(favList.size, key = { favList[it].id }) { Box(Modifier.animateItem()) { TrackRow(favList, it) } } }
+                            } else LazyVerticalGrid(GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                                items(groups.size, key = { groups[it].first }) { idx -> GroupCard(groups[idx].first, groups[idx].second.size, groups[idx].second.firstOrNull(), idx) { openGroup = groups[idx] } }
+                            }
+                        }
                     }
                     2 -> SearchScreen(tracks, prefs) { l, i -> TrackRow(l, i) }
                     3 -> {
-                        Box(Modifier.padding(top = 8.dp)) { EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New playlist", Modifier.padding(horizontal = 18.dp)) } }
-                        AnimatedVisibility(playlists.isEmpty()) { Text("No playlists yet. Create one, then add songs from a track menu.", Modifier.padding(top = 24.dp)) }
-                        LazyColumn { items(playlists, key = { it.id }) { p -> ListItem({ Text(p.name) }, Modifier.animateItem().clickable { scope.launch { val l = dao.playlistTracks(p.id); if (l.isNotEmpty()) play(l, 0) else msg = "Playlist is empty" } },
-                            trailingContent = { IconButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) } }) { Icon(Icons.Default.Delete, "Delete playlist") } },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)) } }
+                        Row(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Playlists", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                            EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
+                        }
+                        if (playlists.isEmpty()) EmptyState("No playlists yet", "Create one, then add songs from a track menu")
+                        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                            items(playlists, key = { it.id }) { p ->
+                                val pts by produceState(emptyList<Track>(), p.id, tracks.size) { value = dao.playlistTracks(p.id) }
+                                val shape = RoundedCornerShape(22.dp)
+                                Row(
+                                    Modifier.animateItem().fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color.Black.copy(alpha = .3f))
+                                        .border(1.dp, Color.White.copy(alpha = .1f), shape)
+                                        .clickable { if (pts.isNotEmpty()) play(pts, 0) else msg = "Playlist is empty" }.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp))) {
+                                        Row(Modifier.weight(1f)) { Art(pts.getOrNull(0), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(1), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
+                                        Row(Modifier.weight(1f)) { Art(pts.getOrNull(2), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(3), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(p.name, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${pts.size} songs", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                    }
+                                    IconButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) } }) { Icon(Icons.Default.Delete, "Delete playlist") }
+                                }
+                            }
+                        }
                     }
                     else -> SettingsScreen(sub, { sub = it }, themeIdx, { setTheme(it); prefs.edit().putInt("theme", it).apply() },
                         autoImport, { autoImport = it; prefs.edit().putBoolean("auto", it).apply(); if (it) requestScan() }, scanning, { requestScan() },
