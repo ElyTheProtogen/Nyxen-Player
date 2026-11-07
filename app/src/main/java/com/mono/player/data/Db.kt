@@ -4,6 +4,7 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "tracks", indices = [Index("uri", unique = true)])
+@androidx.compose.runtime.Immutable
 data class Track(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val uri: String, val title: String, val artist: String, val album: String,
@@ -25,8 +26,13 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Delete suspend fun delete(t: Track) // library entry only, never the file
     @Query("UPDATE tracks SET playCount = playCount + 1, lastPlayed = :now WHERE id = :id")
     suspend fun played(id: Long, now: Long)
-    @Query("SELECT t.* FROM tracks t JOIN playlist_tracks p ON t.id=p.trackId WHERE p.playlistId=:id ORDER BY p.position")
+    @Query("SELECT t.id, t.uri, t.title, t.artist, t.album, t.genre, t.durationMs, t.addedAt, t.playCount, t.lastPlayed, t.favorite, NULL AS artwork FROM tracks t JOIN playlist_tracks p ON t.id=p.trackId WHERE p.playlistId=:id ORDER BY p.position")
     suspend fun playlistTracks(id: Long): List<Track>
+    @Query("SELECT t.id, t.uri, t.title, t.artist, t.album, t.genre, t.durationMs, t.addedAt, t.playCount, t.lastPlayed, t.favorite, NULL AS artwork FROM tracks t JOIN playlist_tracks p ON t.id=p.trackId WHERE p.playlistId=:id ORDER BY p.position")
+    fun playlistTracksFlow(id: Long): Flow<List<Track>>
+    @Query("DELETE FROM playlist_tracks WHERE playlistId=:pid AND trackId=:tid") suspend fun removeFromPlaylist(pid: Long, tid: Long)
+    @Query("UPDATE playlist_tracks SET position=:pos WHERE playlistId=:pid AND trackId=:tid") suspend fun setPosition(pid: Long, tid: Long, pos: Int)
+    @Query("UPDATE playlists SET name=:name WHERE id=:id") suspend fun renamePlaylist(id: Long, name: String)
     @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId=:id") suspend fun count(id: Long): Int
     @Query("SELECT COUNT(*) FROM tracks WHERE title=:t AND artist=:a AND durationMs=:d") suspend fun similar(t: String, a: String, d: Long): Int
     @Query("DELETE FROM tracks") suspend fun wipeTracks()
