@@ -35,6 +35,7 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Query("UPDATE playlists SET name=:name WHERE id=:id") suspend fun renamePlaylist(id: Long, name: String)
     @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId=:id") suspend fun count(id: Long): Int
     @Query("SELECT COUNT(*) FROM tracks WHERE title=:t AND artist=:a AND durationMs=:d") suspend fun similar(t: String, a: String, d: Long): Int
+    @Query("UPDATE tracks SET lastPlayed = :now WHERE id = :id") suspend fun touch(id: Long, now: Long)
     @Query("DELETE FROM tracks") suspend fun wipeTracks()
     @Query("DELETE FROM playlist_tracks") suspend fun wipePlaylistTracks()
     @Query("DELETE FROM playlists") suspend fun wipePlaylists()
