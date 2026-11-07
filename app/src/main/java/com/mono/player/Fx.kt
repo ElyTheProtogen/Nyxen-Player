@@ -18,6 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -59,9 +63,17 @@ fun EmbossedIconButton(onClick: () -> Unit, modifier: Modifier = Modifier.size(4
 /** Four bars that dance while playing and settle low when paused. Heights are read in the draw phase, so no recomposition per frame. */
 @Composable
 fun NowPlayingBars(playing: Boolean, modifier: Modifier = Modifier.size(24.dp)) {
-    val t = rememberInfiniteTransition(label = "bars")
-    val hs = listOf(420, 560, 360, 500).mapIndexed { i, ms ->
-        t.animateFloat(0.25f, 1f, infiniteRepeatable(tween(ms, easing = LinearEasing), RepeatMode.Reverse, StartOffset(i * 90)), label = "b$i")
+    val hs = remember { List(4) { Animatable(0.25f) } }
+    LaunchedEffect(playing) {   // animations only run while playing, so a paused app draws nothing extra
+        if (playing) coroutineScope {
+            hs.forEachIndexed { i, a ->
+                launch {
+                    val ms = listOf(420, 560, 360, 500)[i]
+                    delay(i * 90L)
+                    while (true) { a.animateTo(1f, tween(ms, easing = LinearEasing)); a.animateTo(0.25f, tween(ms, easing = LinearEasing)) }
+                }
+            }
+        }
     }
     val amp by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "amp")
     val tint = lerp(LocalAccent.current, Color.White, .6f)
@@ -76,15 +88,22 @@ fun NowPlayingBars(playing: Boolean, modifier: Modifier = Modifier.size(24.dp)) 
 
 /** Two slow-drifting glows behind the app. Animated values are read only while drawing. */
 @Composable
-fun AuroraGlow(accent: Color, modifier: Modifier = Modifier) {
-    val t = rememberInfiniteTransition(label = "aurora")
-    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse), label = "p")
-    Box(modifier.drawBehind {
+fun AuroraGlow(accent: Color, modifier: Modifier = Modifier, animate: Boolean = true) {
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(animate) {
+        if (animate) while (true) {
+            p.animateTo(1f, tween(14000, easing = LinearEasing)); p.animateTo(0f, tween(14000, easing = LinearEasing))
+        }
+    }
+    Box(modifier.drawWithCache {
         val w = size.width; val h = size.height; val r = w * 0.8f
-        val c1 = Offset(w * (0.1f + 0.7f * p), h * (0.18f + 0.1f * p))
-        val c2 = Offset(w * (0.9f - 0.7f * p), h * (0.85f - 0.12f * p))
-        drawCircle(brush = Brush.radialGradient(listOf(accent.copy(alpha = .34f), Color.Transparent), center = c1, radius = r), radius = r, center = c1)
-        drawCircle(brush = Brush.radialGradient(listOf(accent.copy(alpha = .22f), Color.Transparent), center = c2, radius = r), radius = r, center = c2)
+        val b1 = Brush.radialGradient(listOf(accent.copy(alpha = .34f), Color.Transparent), center = Offset.Zero, radius = r)
+        val b2 = Brush.radialGradient(listOf(accent.copy(alpha = .22f), Color.Transparent), center = Offset.Zero, radius = r)
+        onDrawBehind {
+            val v = p.value
+            translate(w * (0.1f + 0.7f * v), h * (0.18f + 0.1f * v)) { drawCircle(b1, r, Offset.Zero) }
+            translate(w * (0.9f - 0.7f * v), h * (0.85f - 0.12f * v)) { drawCircle(b2, r, Offset.Zero) }
+        }
     })
 }
 
