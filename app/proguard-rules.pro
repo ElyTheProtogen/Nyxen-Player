@@ -1,0 +1,4 @@
+-keep class com.mono.player.** { *; }
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+-dontwarn com.google.errorprone.annotations.**

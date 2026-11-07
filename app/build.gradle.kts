@@ -4,10 +4,18 @@ plugins {
 }
 android {
     namespace = "com.mono.player"; compileSdk = 35
-    defaultConfig { applicationId = "com.mono.player"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "0.1" }
+    defaultConfig { applicationId = "com.mono.player"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "1.1" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")   // installable without a store key; replace for Play Store
+        }
+    }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
