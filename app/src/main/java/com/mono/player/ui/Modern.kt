@@ -30,7 +30,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mono.player.Art
@@ -175,6 +183,7 @@ fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit)
         }
         Text(t.title, Modifier.padding(top = 8.dp), fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(playsText(t.playCount), fontSize = 11.sp, color = accent, maxLines = 1)
     }
 }
 
@@ -237,5 +246,52 @@ fun PlaylistCollage(pts: List<Track>, size: Dp, corner: Dp = 14.dp) {
     Column(Modifier.size(size).clip(RoundedCornerShape(corner))) {
         Row(Modifier.weight(1f)) { Art(pts.getOrNull(0), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(1), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
         Row(Modifier.weight(1f)) { Art(pts.getOrNull(2), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(3), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
+    }
+}
+
+fun playsText(n: Int): String = when { n <= 0 -> "Not played yet"; n == 1 -> "Played 1 time"; else -> "Played $n times" }
+
+/** Create / rename playlist dialog: big field with counter, name ideas and an animated entrance. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    val accent = LocalAccent.current
+    var name by remember { mutableStateOf(initial) }
+    val focus = remember { FocusRequester() }
+    val ideas = listOf("Road trip", "Workout", "Chill", "Focus", "Party", "Late night", "Throwbacks")
+    val shape = RoundedCornerShape(28.dp)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true; delay(200); runCatching { focus.requestFocus() } }
+        AnimatedVisibility(shown, enter = fadeIn(tween(250)) + scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow), initialScale = .85f)) {
+            Column(
+                Modifier.padding(24.dp).fillMaxWidth().shadow(24.dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
+                    .background(Color(0xFF110C1C)).border(1.dp, glassBorder(accent), shape).padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(Modifier.size(64.dp).shadow(14.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .2f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
+                    Icon(Icons.Default.PlaylistAdd, null, Modifier.size(32.dp), tint = Color.White)
+                }
+                Text(title, Modifier.padding(top = 14.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Give it a name you will recognise", color = Color.White.copy(alpha = .7f), fontSize = 13.sp)
+                OutlinedTextField(
+                    name, { if (it.length <= 30) name = it }, Modifier.fillMaxWidth().padding(top = 16.dp).focusRequester(focus), singleLine = true,
+                    placeholder = { Text("Playlist name") },
+                    trailingIcon = { AnimatedVisibility(name.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) { IconButton({ name = "" }) { Icon(Icons.Default.Close, "Clear name") } } },
+                    supportingText = { Text("${name.length}/30", Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onConfirm(name.trim()) })
+                )
+                Text("Ideas", Modifier.align(Alignment.Start), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { ideas.forEach { i -> SuggestionChip({ name = i }, { Text(i) }) } }
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onDismiss, Modifier.weight(1f)) { Text("Cancel") }
+                    EmbossedIconButton({ if (name.isNotBlank()) onConfirm(name.trim()) }, Modifier.weight(1f).height(48.dp).graphicsLayer { alpha = if (name.isBlank()) 0.5f else 1f }, RoundedCornerShape(24.dp)) {
+                        Text(confirmLabel, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }

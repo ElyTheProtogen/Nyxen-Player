@@ -27,6 +27,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,7 +47,7 @@ fun SplashScreen() {
     val t = rememberInfiniteTransition(label = "splash")
     val pulse by t.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     val glow by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "glow")
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A0614), Color(0xFF05030A)))), Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111111), Color(0xFF000000)))), Alignment.Center) {
         AuroraGlow(accent, Modifier.fillMaxSize())
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(painterResource(R.drawable.ic_launcher_foreground), null,
@@ -63,13 +66,20 @@ private fun FeatureRow(icon: ImageVector, text: String) {
     }
 }
 
-/** First-run welcome: asks for a display name (and optional email), stored only on this device. */
+private val GMAIL = Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$", RegexOption.IGNORE_CASE)
+
+/** True only for a well-formed @gmail.com address. */
+fun isGmail(email: String): Boolean = GMAIL.matches(email.trim())
+
+/** Welcome / sign-in screen. A Gmail address is required; everything is stored only on this device. */
 @Composable
-fun WelcomeScreen(onDone: (String, String) -> Unit) {
+fun WelcomeScreen(initialName: String, initialEmail: String, onDone: (String, String) -> Unit) {
     val accent = LocalAccent.current
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF120A22), Color(0xFF05030A))))) {
+    var name by remember { mutableStateOf(initialName) }
+    var email by remember { mutableStateOf(initialEmail) }
+    var tried by remember { mutableStateOf(false) }
+    val ok = isGmail(email)
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111111), Color(0xFF000000))))) {
         AuroraGlow(accent, Modifier.fillMaxSize())
         Column(
             Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(28.dp),
@@ -83,16 +93,24 @@ fun WelcomeScreen(onDone: (String, String) -> Unit) {
                 Column {
                     FeatureRow(Icons.Default.LibraryMusic, "Plays your own music files")
                     FeatureRow(Icons.Default.Equalizer, "Equalizer and sound effects")
-                    FeatureRow(Icons.Default.Palette, "12 gradient themes")
+                    FeatureRow(Icons.Default.Palette, "26 gradient themes")
                 }
             }
             Spacer(Modifier.height(20.dp))
             Reveal(340) { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true) }
             Spacer(Modifier.height(8.dp))
-            Reveal(400) { OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email (optional)") }, singleLine = true) }
+            Reveal(400) {
+                OutlinedTextField(
+                    email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address (required)") }, singleLine = true,
+                    isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
+                )
+            }
+            Reveal(430) { Text("Saved only on this device. We do not sign in to Google or send your address anywhere.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center) }
             Spacer(Modifier.height(20.dp))
             Reveal(460) {
-                EmbossedIconButton({ onDone(name.trim().ifBlank { "Friend" }, email.trim()) }, Modifier.fillMaxWidth().height(54.dp), RoundedCornerShape(27.dp)) {
+                EmbossedIconButton({ tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim()) },
+                    Modifier.fillMaxWidth().height(54.dp).graphicsLayer { alpha = if (ok) 1f else 0.55f }, RoundedCornerShape(27.dp)) {
                     Text("Get started", fontWeight = FontWeight.Bold)
                 }
             }

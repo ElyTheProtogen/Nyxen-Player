@@ -51,7 +51,21 @@ val Themes = listOf(
     AppTheme("Rose", Color(0xFFE91E63), Color(0xFF7B1038), Color.Black, 0.10f, Color(0xFFFF4081)),
     AppTheme("Neon", Color(0xFF006C7A), Color(0xFF012A33), Color.Black, 0f, Color(0xFF00E5FF)),
     AppTheme("Aurora", Color(0xFF0F8F5F), Color(0xFF3A1C71), Color(0xFF08050F), 0.10f, Color(0xFF7CFFCB)),
-    AppTheme("Gold", Color(0xFF7A5C00), Color(0xFF3A2A00), Color.Black, 0f, Color(0xFFFFC53D))
+    AppTheme("Gold", Color(0xFF7A5C00), Color(0xFF3A2A00), Color.Black, 0f, Color(0xFFFFC53D)),
+    AppTheme("Cyberpunk", Color(0xFFFF2E93), Color(0xFF3B0A5E), Color(0xFF020B1F), 0.10f, Color(0xFF00F0FF)),
+    AppTheme("Mint", Color(0xFF2BB39A), Color(0xFF0B3D3A), Color.Black, 0.12f, Color(0xFF6CFFD9)),
+    AppTheme("Lavender", Color(0xFF8E7CC3), Color(0xFF3B2A5F), Color(0xFF0B0814), 0.20f, Color(0xFFC4B5FD)),
+    AppTheme("Ice", Color(0xFF5BC0EB), Color(0xFF1B4965), Color(0xFF0B132B), 0.25f, Color(0xFF9AE6FF)),
+    AppTheme("Lava", Color(0xFFFF512F), Color(0xFF8B1A00), Color.Black, 0.10f, Color(0xFFFF7A3D)),
+    AppTheme("Forest", Color(0xFF2D6A4F), Color(0xFF081C15), Color.Black, 0.05f, Color(0xFF74C69D)),
+    AppTheme("Peach", Color(0xFFFF9A8B), Color(0xFFB5476B), Color(0xFF2B0B2B), 0.30f, Color(0xFFFFB199)),
+    AppTheme("Slate", Color(0xFF475569), Color(0xFF1E293B), Color(0xFF020617), 0.05f, Color(0xFF94A3B8)),
+    AppTheme("Candy", Color(0xFFFF6FD8), Color(0xFF7C3AED), Color(0xFF0B0B2B), 0.15f, Color(0xFFFF9CE8)),
+    AppTheme("Emerald", Color(0xFF00B09B), Color(0xFF004E3F), Color.Black, 0.10f, Color(0xFF2EE6A6)),
+    AppTheme("Amber", Color(0xFFFFB347), Color(0xFF7A3E00), Color.Black, 0.30f, Color(0xFFFFC266)),
+    AppTheme("Ruby", Color(0xFF9B111E), Color(0xFF3A0610), Color.Black, 0f, Color(0xFFFF4D5E)),
+    AppTheme("Sky", Color(0xFF87CEEB), Color(0xFF2F6DB5), Color(0xFF0A1A3A), 0.35f, Color(0xFF7CC8FF)),
+    AppTheme("Mono Dark", Color(0xFF1A1A1A), Color(0xFF0D0D0D), Color.Black, 0f, Color(0xFFFFFFFF))
 )
 
 @Composable
@@ -214,6 +228,7 @@ private fun AccountScreen(name: String, email: String, onSave: (String, String) 
     var e by remember { mutableStateOf(email) }
     var confirm by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf(false) }
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Reveal(0) {
             GlassCard(Modifier.fillMaxWidth()) {
@@ -225,7 +240,7 @@ private fun AccountScreen(name: String, email: String, onSave: (String, String) 
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text(name.ifBlank { "Guest" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(email.ifBlank { "No email added" }, style = MaterialTheme.typography.bodySmall)
+                        Text(email.ifBlank { "No Gmail added" }, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -234,9 +249,10 @@ private fun AccountScreen(name: String, email: String, onSave: (String, String) 
             GlassCard(Modifier.fillMaxWidth()) {
                 OutlinedTextField(n, { n = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(e, { e = it }, Modifier.fillMaxWidth(), label = { Text("Email (optional)") }, singleLine = true)
+                OutlinedTextField(e, { e = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address") }, singleLine = true,
+                    isError = err && !isGmail(e), supportingText = { if (err && !isGmail(e)) Text("Enter a valid @gmail.com address") })
                 Spacer(Modifier.height(12.dp))
-                EmbossedIconButton({ onSave(n.trim(), e.trim()); saved = true; scope.launch { delay(1500); saved = false } }, Modifier.fillMaxWidth().height(48.dp), RoundedCornerShape(24.dp)) {
+                EmbossedIconButton({ if (n.isNotBlank() && isGmail(e)) { onSave(n.trim(), e.trim()); saved = true; err = false; scope.launch { delay(1500); saved = false } } else err = true }, Modifier.fillMaxWidth().height(48.dp), RoundedCornerShape(24.dp)) {
                     Crossfade(saved, label = "sv") { ok -> Text(if (ok) "Saved" else "Save changes", fontWeight = FontWeight.Bold) }
                 }
             }

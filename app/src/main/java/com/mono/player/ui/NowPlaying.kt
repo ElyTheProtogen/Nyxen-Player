@@ -208,6 +208,7 @@ fun NowPlayingScreen(
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(t.title, Modifier.basicMarquee(), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, softWrap = false)
                         Text("${t.artist} · ${t.album}", color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(playsText(t.playCount), fontSize = 12.sp, color = accent)
                     }
                 }
             }
