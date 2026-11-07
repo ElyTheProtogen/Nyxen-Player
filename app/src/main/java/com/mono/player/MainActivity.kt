@@ -34,6 +34,7 @@ import com.mono.player.ui.GroupCard
 import com.mono.player.ui.HeroCard
 import com.mono.player.ui.HomeHeader
 import com.mono.player.ui.MiniPlayer
+import com.mono.player.ui.PlaylistCollage
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -196,6 +197,9 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var libCat by remember { mutableIntStateOf(prefs.getInt("libcat", 0)) }
     var openGroup by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
     var miniProg by remember { mutableFloatStateOf(0f) }
+    var openPlId by remember { mutableStateOf<Long?>(null) }
+    var renamePl by remember { mutableStateOf<Playlist?>(null) }
+    var delPl by remember { mutableStateOf<Playlist?>(null) }
     var askPerm by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -400,31 +404,87 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     }
                     2 -> SearchScreen(tracks, prefs) { l, i -> TrackRow(l, i) }
                     3 -> {
-                        Row(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Playlists", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                            EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
-                        }
-                        if (playlists.isEmpty()) EmptyState("No playlists yet", "Create one, then add songs from a track menu")
-                        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                            items(playlists, key = { it.id }) { p ->
-                                val pts by produceState(emptyList<Track>(), p.id, tracks.size) { value = dao.playlistTracks(p.id) }
-                                val shape = RoundedCornerShape(22.dp)
-                                Row(
-                                    Modifier.animateItem().fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color.Black.copy(alpha = .3f))
-                                        .border(1.dp, Color.White.copy(alpha = .1f), shape)
-                                        .clickable { if (pts.isNotEmpty()) play(pts, 0) else msg = "Playlist is empty" }.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp))) {
-                                        Row(Modifier.weight(1f)) { Art(pts.getOrNull(0), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(1), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
-                                        Row(Modifier.weight(1f)) { Art(pts.getOrNull(2), Modifier.weight(1f).fillMaxHeight(), 0.dp); Art(pts.getOrNull(3), Modifier.weight(1f).fillMaxHeight(), 0.dp) }
+                        BackHandler(openPlId != null && tab == 3) { openPlId = null }
+                        AnimatedContent(openPlId, transitionSpec = {
+                            if (targetState != null) (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(200)))
+                            else (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(200)))
+                        }, label = "pl") { openId ->
+                            val pl = playlists.firstOrNull { it.id == openId }
+                            val shape = RoundedCornerShape(22.dp)
+                            if (pl == null) Column {
+                                Row(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Playlists", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                                    EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
+                                }
+                                if (playlists.isEmpty()) EmptyState("No playlists yet", "Create one, then add songs from a track menu")
+                                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                                    items(playlists, key = { it.id }) { p ->
+                                        val pts by dao.playlistTracksFlow(p.id).collectAsState(emptyList())
+                                        Row(
+                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color.Black.copy(alpha = .3f))
+                                                .border(1.dp, Color.White.copy(alpha = .1f), shape).clickable { openPlId = p.id }.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            PlaylistCollage(pts, 64.dp)
+                                            Spacer(Modifier.width(14.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(p.name, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text("${pts.size} songs", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                            }
+                                            IconButton({ if (pts.isNotEmpty()) play(pts, 0) else msg = "Playlist is empty" }) { Icon(Icons.Default.PlayArrow, "Play playlist") }
+                                            IconButton({ delPl = p }) { Icon(Icons.Default.Delete, "Delete playlist") }
+                                        }
                                     }
-                                    Spacer(Modifier.width(14.dp))
+                                }
+                            } else Column {
+                                val pts by dao.playlistTracksFlow(pl.id).collectAsState(emptyList())
+                                var pmenu by remember { mutableStateOf(false) }
+                                Row(Modifier.padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    EmbossedIconButton({ openPlId = null }, Modifier.size(40.dp)) { Icon(Icons.Default.ArrowBack, "Back to playlists") }
+                                    Spacer(Modifier.weight(1f))
+                                    Box {
+                                        EmbossedIconButton({ pmenu = true }, Modifier.size(40.dp)) { Icon(Icons.Default.MoreVert, "Playlist options") }
+                                        DropdownMenu(pmenu, { pmenu = false }) {
+                                            DropdownMenuItem({ Text("Rename") }, { renamePl = pl; pmenu = false })
+                                            DropdownMenuItem({ Text("Delete playlist") }, { delPl = pl; pmenu = false })
+                                        }
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.shadow(16.dp, RoundedCornerShape(20.dp), ambientColor = accent, spotColor = accent)) { PlaylistCollage(pts, 104.dp, 20.dp) }
+                                    Spacer(Modifier.width(16.dp))
                                     Column(Modifier.weight(1f)) {
-                                        Text(p.name, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text("${pts.size} songs", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                        Text(pl.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text("${pts.size} songs · ${pts.sumOf { it.durationMs } / 60000} min", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            EmbossedIconButton({ if (pts.isNotEmpty()) play(pts, 0) else msg = "Playlist is empty" }, Modifier.height(40.dp), RoundedCornerShape(20.dp)) {
+                                                Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Play", fontWeight = FontWeight.SemiBold) }
+                                            }
+                                            EmbossedIconButton({ if (pts.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(pts, kotlin.random.Random.nextInt(pts.size)) } else msg = "Playlist is empty" }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle playlist") }
+                                        }
                                     }
-                                    IconButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) } }) { Icon(Icons.Default.Delete, "Delete playlist") }
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                if (pts.isEmpty()) EmptyState("This playlist is empty", "Add songs from any track menu")
+                                else LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                                    items(pts.size, key = { pts[it].id }) { i ->
+                                        val t = pts[i]
+                                        Row(
+                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = .28f))
+                                                .border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp)).clickable { play(pts, i) }.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Art(t, Modifier.size(48.dp)); Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
+                                            IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i - 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Move up") }
+                                            IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i + 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i < pts.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                            IconButton({ scope.launch { val rest = pts.filter { it.id != t.id }.map { it.id }; dao.removeFromPlaylist(pl.id, t.id); rest.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp)) { Icon(Icons.Default.Close, "Remove from playlist") }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -469,6 +529,17 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         text = { Text("NyxenPlayer needs access to audio files on your device so it can find and add your .mp3, .m4a, .ogg and .wav songs automatically. It only reads music files and never uploads them.") },
         confirmButton = { TextButton({ askPerm = false; permLauncher.launch(audioPerm) }) { Text("Continue") } },
         dismissButton = { TextButton({ askPerm = false; askNotif() }) { Text("Not now") } })
+    renamePl?.let { p ->
+        var name by remember(p.id) { mutableStateOf(p.name) }
+        AlertDialog({ renamePl = null }, title = { Text("Rename playlist") }, text = { OutlinedTextField(name, { name = it }, singleLine = true) },
+            confirmButton = { TextButton({ if (name.isNotBlank()) scope.launch { dao.renamePlaylist(p.id, name.trim()) }; renamePl = null }) { Text("Save") } },
+            dismissButton = { TextButton({ renamePl = null }) { Text("Cancel") } })
+    }
+    delPl?.let { p ->
+        AlertDialog({ delPl = null }, title = { Text("Delete playlist?") }, text = { Text("\"${p.name}\" will be deleted. Your songs stay in the library.") },
+            confirmButton = { TextButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) }; if (openPlId == p.id) openPlId = null; delPl = null }) { Text("Delete", color = Color(0xFFFF6B6B)) } },
+            dismissButton = { TextButton({ delPl = null }) { Text("Cancel") } })
+    }
     if (showQueue) AlertDialog({ showQueue = false }, confirmButton = { TextButton({ showQueue = false }) { Text("Close") } }, title = { Text("Queue") }, text = {
         LazyColumn { items((c?.mediaItemCount ?: 0)) { i -> val m = c!!.getMediaItemAt(i)
             ListItem({ Text(m.mediaMetadata.title?.toString() ?: "Track") }, Modifier.clickable { c?.seekTo(i, 0); showQueue = false }) } } })
