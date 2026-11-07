@@ -53,18 +53,16 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
     }
     LaunchedEffect(query) { delay(150); debounced = query.trim() }
     val filters = listOf("All", "Songs", "Artists", "Albums", "Genres")
-    val results = remember(tracks, debounced, filter) {
+    val idx = remember(tracks) { SearchIndex(tracks) }
+    val results = remember(idx, debounced, filter) {
         if (debounced.isEmpty()) emptyList() else {
             val tokens = debounced.lowercase().split(" ").filter { it.isNotBlank() }
-            tracks.filter { t ->
-                val hay = when (filter) { 1 -> t.title; 2 -> t.artist; 3 -> t.album; 4 -> t.genre; else -> "${t.title} ${t.artist} ${t.album} ${t.genre}" }.lowercase()
-                tokens.all { hay.contains(it) }
-            }
+            val h = when (filter) { 1 -> idx.title; 2 -> idx.artist; 3 -> idx.album; 4 -> idx.genre; else -> idx.all }
+            tracks.filterIndexed { i, _ -> tokens.all { h[i].contains(it) } }
         }
     }
-    val suggestions = remember(tracks, debounced) {
-        if (debounced.isEmpty()) emptyList() else (tracks.map { it.artist } + tracks.map { it.album }).distinct()
-            .filter { it.contains(debounced, true) && !it.equals(debounced, true) && !it.startsWith("Unknown") }.take(5)
+    val suggestions = remember(idx, debounced) {
+        if (debounced.isEmpty()) emptyList() else idx.names.filter { it.contains(debounced, true) && !it.equals(debounced, true) }.take(5)
     }
     LaunchedEffect(debounced, results.size) { if (debounced.length >= 2 && results.isNotEmpty()) { delay(1200); addRecent(debounced) } }
 
@@ -122,4 +120,14 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
             }
         }
     }
+}
+
+/** Lower-cased search text built once per library change, so typing never rebuilds strings for every song. */
+private class SearchIndex(tracks: List<Track>) {
+    val title = Array(tracks.size) { tracks[it].title.lowercase() }
+    val artist = Array(tracks.size) { tracks[it].artist.lowercase() }
+    val album = Array(tracks.size) { tracks[it].album.lowercase() }
+    val genre = Array(tracks.size) { tracks[it].genre.lowercase() }
+    val all = Array(tracks.size) { "${title[it]} ${artist[it]} ${album[it]} ${genre[it]}" }
+    val names = (tracks.map { it.artist } + tracks.map { it.album }).distinct().filter { !it.startsWith("Unknown") }
 }

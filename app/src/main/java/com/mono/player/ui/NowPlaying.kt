@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -88,29 +89,31 @@ private fun SquareArt(track: Track, tracks: List<Track>, size: Dp, accent: Color
 /** Decorative animated bars (not a real spectrum). Values are read while drawing, so nothing recomposes per frame. */
 @Composable
 private fun PulseBars(playing: Boolean, accent: Color, modifier: Modifier) {
-    val t = rememberInfiniteTransition(label = "pb")
-    val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "ph")
+    val phase = remember { Animatable(0f) }
+    LaunchedEffect(playing) { if (playing) while (true) { phase.snapTo(0f); phase.animateTo((2 * Math.PI).toFloat(), tween(1800, easing = LinearEasing)) } }
     val amp by animateFloatAsState(if (playing) 1f else 0f, tween(500), label = "pa")
-    Canvas(modifier) {
+    Box(modifier.drawWithCache {
+        val brush = Brush.verticalGradient(listOf(lerp(accent, Color.White, .5f), accent), startY = 0f, endY = size.height)
         val n = 36; val gap = 4.dp.toPx(); val w = (size.width - gap * (n - 1)) / n
-        for (i in 0 until n) {
-            val wave = 0.5f + 0.5f * kotlin.math.sin(phase * (1 + i % 3) + i * 0.55f)
-            val h = (0.16f + amp * (0.12f + 0.55f * wave)) * size.height
-            drawRoundRect(
-                brush = Brush.verticalGradient(listOf(lerp(accent, Color.White, .5f), accent), startY = size.height - h, endY = size.height),
-                topLeft = Offset(i * (w + gap), size.height - h), size = Size(w, h), cornerRadius = CornerRadius(w / 2)
-            )
+        val corner = CornerRadius(w / 2)
+        onDrawBehind {
+            val ph = phase.value; val a = amp
+            for (i in 0 until n) {
+                val wave = 0.5f + 0.5f * kotlin.math.sin(ph * (1 + i % 3) + i * 0.55f)
+                val h = (0.16f + a * (0.12f + 0.55f * wave)) * size.height
+                drawRoundRect(brush, Offset(i * (w + gap), size.height - h), Size(w, h), corner)
+            }
         }
-    }
+    })
 }
 
 @Composable
 private fun PlayButton(playing: Boolean, accent: Color, onClick: () -> Unit) {
-    val t = rememberInfiniteTransition(label = "ring")
-    val ring by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1500, easing = LinearOutSlowInEasing)), label = "ring")
+    val ring = remember { Animatable(0f) }
+    LaunchedEffect(playing) { if (playing) while (true) { ring.snapTo(0f); ring.animateTo(1f, tween(1500, easing = LinearOutSlowInEasing)) } }
     val on by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "on")
     Box(Modifier.size(96.dp), Alignment.Center) {
-        Box(Modifier.size(76.dp).graphicsLayer { val s = 1f + 0.35f * ring; scaleX = s; scaleY = s; alpha = (1f - ring) * 0.5f * on }.border(2.dp, accent, CircleShape))
+        Box(Modifier.size(76.dp).graphicsLayer { val s = 1f + 0.35f * ring.value; scaleX = s; scaleY = s; alpha = (1f - ring.value) * 0.5f * on }.border(2.dp, accent, CircleShape))
         EmbossedIconButton(onClick, Modifier.size(76.dp)) {
             Crossfade(playing, label = "pp") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, if (p) "Pause" else "Play", Modifier.size(40.dp)) }
         }
@@ -143,17 +146,19 @@ fun NowPlayingScreen(
         if (playing) { while (true) angle.animateTo(angle.value + 360f, tween(14000, easing = LinearEasing)) }
         else angle.animateTo(angle.value + 25f, tween(900, easing = FastOutSlowInEasing))
     }
-    val inf = rememberInfiniteTransition(label = "np")
-    val pulse by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
+    val pulse = remember { Animatable(0f) }
+    LaunchedEffect(playing) {
+        if (playing) while (true) { pulse.animateTo(1f, tween(1600, easing = FastOutSlowInEasing)); pulse.animateTo(0f, tween(1600, easing = FastOutSlowInEasing)) }
+    }
     val amp by animateFloatAsState(if (playing) 1f else 0f, tween(400), label = "amp")
     val artScale by animateFloatAsState(if (playing) 1f else 0.9f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "artScale")
 
     Box(Modifier.fillMaxSize().background(Color(0xFF05030A))) {
         Crossfade(track.id, animationSpec = tween(700), label = "bg") { id ->
-            Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.7f; scaleY = 1.7f; alpha = 0.55f }.blur(60.dp))
+            Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f; alpha = 0.55f }.blur(40.dp))
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .55f), Color.Black.copy(alpha = .35f), Color.Black.copy(alpha = .88f)))))
-        AuroraGlow(accent, Modifier.fillMaxSize())
+        AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
 
         Column(
             Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 22.dp, vertical = 10.dp).pointerInput(Unit) {
@@ -190,7 +195,7 @@ fun NowPlayingScreen(
                     AnimatedContent(vinyl, transitionSpec = {
                         (fadeIn(tween(350)) + scaleIn(tween(350), initialScale = .8f)) togetherWith (fadeOut(tween(250)) + scaleOut(tween(250), targetScale = .8f))
                     }, label = "artMode") { isVinyl ->
-                        if (isVinyl) VinylDisc(track, tracks, s, angle, { amp * pulse }, accent) else SquareArt(track, tracks, s, accent)
+                        if (isVinyl) VinylDisc(track, tracks, s, angle, { amp * pulse.value }, accent) else SquareArt(track, tracks, s, accent)
                     }
                 }
             }
