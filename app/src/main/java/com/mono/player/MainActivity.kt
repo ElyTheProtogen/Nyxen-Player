@@ -34,6 +34,11 @@ import com.mono.player.ui.GroupCard
 import com.mono.player.ui.HeroCard
 import com.mono.player.ui.HomeHeader
 import com.mono.player.ui.MiniPlayer
+import com.mono.player.ui.NamePlaylistDialog
+import com.mono.player.ui.isGmail
+import com.mono.player.ui.playsText
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.mono.player.ui.PlaylistCollage
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -247,8 +252,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
     LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
     LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(700); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
-    LaunchedEffect(booted, profName) {
-        if (booted && profName.isNotBlank()) {
+    LaunchedEffect(booted, profName, profEmail) {
+        if (booted && profName.isNotBlank() && isGmail(profEmail)) {
             if (!greeted) {
                 greeted = true
                 val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -304,6 +309,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             Column(Modifier.weight(1f)) {
                 Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${t.artist} · ${t.album}", fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(playsText(t.playCount), fontSize = 11.sp, color = accent)
             }
             if (t.favorite) Icon(Icons.Default.Favorite, "Favorite", Modifier.size(16.dp), tint = accent)
             Text(fmt(t.durationMs), Modifier.padding(horizontal = 8.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
@@ -405,19 +411,43 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     2 -> SearchScreen(tracks, prefs) { l, i -> TrackRow(l, i) }
                     3 -> {
                         BackHandler(openPlId != null && tab == 3) { openPlId = null }
+                        val mostList = remember(tracks) { tracks.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(50) }
+                        val recentList = remember(tracks) { tracks.filter { it.lastPlayed > 0 }.sortedByDescending { it.lastPlayed }.take(50) }
                         AnimatedContent(openPlId, transitionSpec = {
                             if (targetState != null) (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(200)))
                             else (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(200)))
                         }, label = "pl") { openId ->
-                            val pl = playlists.firstOrNull { it.id == openId }
+                            val smart = openId != null && openId < 0
+                            val pl = if (smart) Playlist(openId ?: -1L, if (openId == -1L) "Most replayed" else "Recently played") else playlists.firstOrNull { it.id == openId }
                             val shape = RoundedCornerShape(22.dp)
                             if (pl == null) Column {
+                                @Composable fun SmartRow(id: Long, name: String, list: List<Track>, icon: ImageVector) {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(shape)
+                                            .background(Brush.linearGradient(listOf(accent.copy(alpha = .35f), Color.Black.copy(alpha = .3f)))).border(1.dp, accent.copy(alpha = .5f), shape)
+                                            .clickable { openPlId = id }.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box {
+                                            PlaylistCollage(list, 64.dp)
+                                            Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).size(22.dp).clip(CircleShape).background(accent), Alignment.Center) { Icon(icon, null, Modifier.size(14.dp), tint = Color.White) }
+                                        }
+                                        Spacer(Modifier.width(14.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(name, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                                            Text(if (list.isEmpty()) "Play a few songs to fill this" else "${list.size} songs · Auto playlist", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                        }
+                                        IconButton({ if (list.isNotEmpty()) play(list, 0) else msg = "Nothing here yet" }) { Icon(Icons.Default.PlayArrow, "Play $name") }
+                                    }
+                                }
                                 Row(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text("Playlists", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
                                     EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
                                 }
-                                if (playlists.isEmpty()) EmptyState("No playlists yet", "Create one, then add songs from a track menu")
                                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                                    item(key = "smart-most") { SmartRow(-1L, "Most replayed", mostList, Icons.Default.TrendingUp) }
+                                    item(key = "smart-recent") { SmartRow(-2L, "Recently played", recentList, Icons.Default.History) }
+                                    if (playlists.isEmpty()) item(key = "none") { EmptyState("No custom playlists yet", "Tap New to create one") }
                                     items(playlists, key = { it.id }) { p ->
                                         val pts by dao.playlistTracksFlow(p.id).collectAsState(emptyList())
                                         Row(
@@ -437,12 +467,13 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                                     }
                                 }
                             } else Column {
-                                val pts by dao.playlistTracksFlow(pl.id).collectAsState(emptyList())
+                                val flowPts by dao.playlistTracksFlow(pl.id).collectAsState(emptyList())
+                                val pts = if (smart) (if (pl.id == -1L) mostList else recentList) else flowPts
                                 var pmenu by remember { mutableStateOf(false) }
                                 Row(Modifier.padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                     EmbossedIconButton({ openPlId = null }, Modifier.size(40.dp)) { Icon(Icons.Default.ArrowBack, "Back to playlists") }
                                     Spacer(Modifier.weight(1f))
-                                    Box {
+                                    if (!smart) Box {
                                         EmbossedIconButton({ pmenu = true }, Modifier.size(40.dp)) { Icon(Icons.Default.MoreVert, "Playlist options") }
                                         DropdownMenu(pmenu, { pmenu = false }) {
                                             DropdownMenuItem({ Text("Rename") }, { renamePl = pl; pmenu = false })
@@ -455,18 +486,18 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                                     Spacer(Modifier.width(16.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(pl.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        Text("${pts.size} songs · ${pts.sumOf { it.durationMs } / 60000} min", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
+                                        Text("${pts.size} songs · ${pts.sumOf { it.durationMs } / 60000} min" + if (smart) " · Auto playlist" else "", fontSize = 12.sp, color = Color.White.copy(alpha = .7f))
                                         Spacer(Modifier.height(10.dp))
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            EmbossedIconButton({ if (pts.isNotEmpty()) play(pts, 0) else msg = "Playlist is empty" }, Modifier.height(40.dp), RoundedCornerShape(20.dp)) {
+                                            EmbossedIconButton({ if (pts.isNotEmpty()) play(pts, 0) else msg = "Nothing here yet" }, Modifier.height(40.dp), RoundedCornerShape(20.dp)) {
                                                 Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Play", fontWeight = FontWeight.SemiBold) }
                                             }
-                                            EmbossedIconButton({ if (pts.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(pts, kotlin.random.Random.nextInt(pts.size)) } else msg = "Playlist is empty" }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle playlist") }
+                                            EmbossedIconButton({ if (pts.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(pts, kotlin.random.Random.nextInt(pts.size)) } else msg = "Nothing here yet" }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle playlist") }
                                         }
                                     }
                                 }
                                 Spacer(Modifier.height(12.dp))
-                                if (pts.isEmpty()) EmptyState("This playlist is empty", "Add songs from any track menu")
+                                if (pts.isEmpty()) EmptyState(if (smart) "Nothing here yet" else "This playlist is empty", if (smart) "Play some songs and they will show up here" else "Add songs from any track menu")
                                 else LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                                     items(pts.size, key = { pts[it].id }) { i ->
                                         val t = pts[i]
@@ -480,9 +511,12 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                                                 Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             }
-                                            IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i - 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Move up") }
-                                            IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i + 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i < pts.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
-                                            IconButton({ scope.launch { val rest = pts.filter { it.id != t.id }.map { it.id }; dao.removeFromPlaylist(pl.id, t.id); rest.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp)) { Icon(Icons.Default.Close, "Remove from playlist") }
+                                            if (smart) Text(playsText(t.playCount), fontSize = 11.sp, color = accent, modifier = Modifier.padding(end = 6.dp))
+                                            else {
+                                                IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i - 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Move up") }
+                                                IconButton({ scope.launch { val ids = pts.map { it.id }.toMutableList(); ids.add(i + 1, ids.removeAt(i)); ids.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp), enabled = i < pts.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                                IconButton({ scope.launch { val rest = pts.filter { it.id != t.id }.map { it.id }; dao.removeFromPlaylist(pl.id, t.id); rest.forEachIndexed { k, id -> dao.setPosition(pl.id, id, k) } } }, Modifier.size(36.dp)) { Icon(Icons.Default.Close, "Remove from playlist") }
+                                            }
                                         }
                                     }
                                 }
@@ -518,8 +552,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             )
         }
         Banner(msg, Modifier.align(Alignment.TopCenter))
-        AnimatedVisibility(booted && profName.isBlank(), enter = fadeIn(), exit = fadeOut(tween(500))) {
-            WelcomeScreen { n, e -> profName = n; profEmail = e; prefs.edit().putString("pname", n).putString("pemail", e).apply() }
+        AnimatedVisibility(booted && !(profName.isNotBlank() && isGmail(profEmail)), enter = fadeIn(), exit = fadeOut(tween(500))) {
+            WelcomeScreen(profName, profEmail) { n, e -> profName = n; profEmail = e; prefs.edit().putString("pname", n).putString("pemail", e).apply() }
         }
         AnimatedVisibility(!booted, exit = fadeOut(tween(600))) { SplashScreen() }
     }
@@ -529,12 +563,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         text = { Text("NyxenPlayer needs access to audio files on your device so it can find and add your .mp3, .m4a, .ogg and .wav songs automatically. It only reads music files and never uploads them.") },
         confirmButton = { TextButton({ askPerm = false; permLauncher.launch(audioPerm) }) { Text("Continue") } },
         dismissButton = { TextButton({ askPerm = false; askNotif() }) { Text("Not now") } })
-    renamePl?.let { p ->
-        var name by remember(p.id) { mutableStateOf(p.name) }
-        AlertDialog({ renamePl = null }, title = { Text("Rename playlist") }, text = { OutlinedTextField(name, { name = it }, singleLine = true) },
-            confirmButton = { TextButton({ if (name.isNotBlank()) scope.launch { dao.renamePlaylist(p.id, name.trim()) }; renamePl = null }) { Text("Save") } },
-            dismissButton = { TextButton({ renamePl = null }) { Text("Cancel") } })
-    }
+    renamePl?.let { p -> NamePlaylistDialog("Rename playlist", p.name, "Save", { renamePl = null }) { n -> scope.launch { dao.renamePlaylist(p.id, n) }; renamePl = null } }
     delPl?.let { p ->
         AlertDialog({ delPl = null }, title = { Text("Delete playlist?") }, text = { Text("\"${p.name}\" will be deleted. Your songs stay in the library.") },
             confirmButton = { TextButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) }; if (openPlId == p.id) openPlId = null; delPl = null }) { Text("Delete", color = Color(0xFFFF6B6B)) } },
@@ -546,8 +575,5 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     addFor?.let { t -> AlertDialog({ addFor = null }, confirmButton = { TextButton({ addFor = null }) { Text("Cancel") } }, title = { Text("Add to playlist") }, text = {
         if (playlists.isEmpty()) Text("Create a playlist first.") else LazyColumn { items(playlists) { p ->
             ListItem({ Text(p.name) }, Modifier.clickable { scope.launch { dao.addToPlaylist(PlaylistTrack(p.id, t.id, dao.count(p.id))) }; addFor = null }) } } }) }
-    if (newPl) { var name by remember { mutableStateOf("") }
-        AlertDialog({ newPl = false }, title = { Text("New playlist") }, text = { OutlinedTextField(name, { name = it }, singleLine = true) },
-            confirmButton = { TextButton({ if (name.isNotBlank()) scope.launch { dao.addPlaylist(Playlist(name = name.trim())) }; newPl = false }) { Text("Create") } },
-            dismissButton = { TextButton({ newPl = false }) { Text("Cancel") } }) }
+    if (newPl) NamePlaylistDialog("New playlist", "", "Create", { newPl = false }) { n -> scope.launch { dao.addPlaylist(Playlist(name = n)) }; newPl = false }
 }
