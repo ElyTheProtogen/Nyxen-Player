@@ -11,6 +11,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.animation.scaleIn
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -71,48 +79,83 @@ private val GMAIL = Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$", RegexOption.IGNORE_
 /** True only for a well-formed @gmail.com address. */
 fun isGmail(email: String): Boolean = GMAIL.matches(email.trim())
 
-/** Welcome / sign-in screen. A Gmail address is required; everything is stored only on this device. */
+@Composable
+private fun FeatureCard(icon: ImageVector, title: String, text: String) {
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Color.White.copy(alpha = .06f))
+            .border(1.dp, Color.White.copy(alpha = .14f), shape).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White), Alignment.Center) { Icon(icon, null, tint = Color.Black) }
+        Spacer(Modifier.width(14.dp))
+        Column { Text(title, fontWeight = FontWeight.SemiBold, color = Color.White); Text(text, fontSize = 13.sp, color = Color.White.copy(alpha = .7f)) }
+    }
+}
+
+/** Three-step welcome: hello, what the app does, then a profile with a required Gmail address (stored only on this device). */
 @Composable
 fun WelcomeScreen(initialName: String, initialEmail: String, onDone: (String, String) -> Unit) {
     val accent = LocalAccent.current
+    val scope = rememberCoroutineScope()
+    val pager = rememberPagerState(if (initialName.isNotBlank()) 2 else 0) { 3 }
     var name by remember { mutableStateOf(initialName) }
     var email by remember { mutableStateOf(initialEmail) }
     var tried by remember { mutableStateOf(false) }
     val ok = isGmail(email)
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111111), Color(0xFF000000))))) {
+    val breathe = rememberInfiniteTransition(label = "breathe")
+    val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0E0E0E), Color(0xFF000000))))) {
         AuroraGlow(accent, Modifier.fillMaxSize())
-        Column(
-            Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
-        ) {
-            Reveal(0) { Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(140.dp)) }
-            Reveal(100) { Text("Welcome to NyxenPlayer", fontSize = 28.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White) }
-            Reveal(180) { Text("Your music, your way. Everything stays on this device.", color = Color.White.copy(alpha = .75f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp)) }
-            Spacer(Modifier.height(22.dp))
-            Reveal(260) {
-                Column {
-                    FeatureRow(Icons.Default.LibraryMusic, "Plays your own music files")
-                    FeatureRow(Icons.Default.Equalizer, "Equalizer and sound effects")
-                    FeatureRow(Icons.Default.Palette, "26 gradient themes")
+        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+            HorizontalPager(pager, Modifier.weight(1f)) { page ->
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+                ) {
+                    when (page) {
+                        0 -> {
+                            Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(230.dp).graphicsLayer { scaleX = pulse; scaleY = pulse })
+                            Text("NYXEN", fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = 10.sp, color = Color.White)
+                            Text("PLAYER", fontSize = 14.sp, letterSpacing = 12.sp, color = Color.White.copy(alpha = .7f))
+                            Spacer(Modifier.height(24.dp))
+                            Text("Your music, your way.\nEverything stays on this device.", color = Color.White.copy(alpha = .8f), textAlign = TextAlign.Center)
+                        }
+                        1 -> {
+                            Text("Made for your music", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(18.dp))
+                            FeatureCard(Icons.Default.LibraryMusic, "Your library", "Finds and plays .mp3, .m4a, .ogg and .wav files from your phone")
+                            FeatureCard(Icons.Default.Equalizer, "Studio sound", "Equalizer, bass boost and reverb with your own presets")
+                            FeatureCard(Icons.Default.Palette, "26 themes", "Gradient themes that recolor every button and glow")
+                        }
+                        else -> {
+                            Text("Create your profile", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+                            Text("A Gmail address is required", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(
+                                email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address") }, singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.Email, null) },
+                                trailingIcon = { AnimatedVisibility(ok, enter = fadeIn() + scaleIn(), exit = fadeOut()) { Icon(Icons.Default.CheckCircle, "Valid Gmail address", tint = Color(0xFF4CD964)) } },
+                                isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
+                            )
+                            Text("Saved only on this device. We do not sign in to Google or send your address anywhere.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                        }
+                    }
                 }
             }
-            Spacer(Modifier.height(20.dp))
-            Reveal(340) { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true) }
-            Spacer(Modifier.height(8.dp))
-            Reveal(400) {
-                OutlinedTextField(
-                    email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address (required)") }, singleLine = true,
-                    isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
-                )
-            }
-            Reveal(430) { Text("Saved only on this device. We do not sign in to Google or send your address anywhere.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center) }
-            Spacer(Modifier.height(20.dp))
-            Reveal(460) {
-                EmbossedIconButton({ tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim()) },
-                    Modifier.fillMaxWidth().height(54.dp).graphicsLayer { alpha = if (ok) 1f else 0.55f }, RoundedCornerShape(27.dp)) {
-                    Text("Get started", fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(3) { i ->
+                        val w by animateDpAsState(if (pager.currentPage == i) 26.dp else 8.dp, spring(Spring.DampingRatioMediumBouncy), label = "dot")
+                        Box(Modifier.height(8.dp).width(w).clip(CircleShape).background(if (pager.currentPage == i) Color.White else Color.White.copy(alpha = .3f)))
+                    }
                 }
+                EmbossedIconButton(
+                    { if (pager.currentPage < 2) scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } else { tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim()) } },
+                    Modifier.height(52.dp).widthIn(min = 140.dp).graphicsLayer { alpha = if (pager.currentPage < 2 || ok) 1f else 0.55f }, RoundedCornerShape(26.dp)
+                ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
             }
         }
     }

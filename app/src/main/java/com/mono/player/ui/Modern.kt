@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -251,47 +252,103 @@ fun PlaylistCollage(pts: List<Track>, size: Dp, corner: Dp = 14.dp) {
 
 fun playsText(n: Int): String = when { n <= 0 -> "Not played yet"; n == 1 -> "Played 1 time"; else -> "Played $n times" }
 
-/** Create / rename playlist dialog: big field with counter, name ideas and an animated entrance. */
+/** Create / rename playlist: a full-screen page with a live, gently floating cover preview of the name you type. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     val accent = LocalAccent.current
     var name by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
-    val ideas = listOf("Road trip", "Workout", "Chill", "Focus", "Party", "Late night", "Throwbacks")
-    val shape = RoundedCornerShape(28.dp)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    val ideas = listOf("Road trip", "Workout", "Chill", "Focus", "Party", "Late night", "Throwbacks", "Study", "Sunday mood")
+    val float = rememberInfiniteTransition(label = "float")
+    val bob by float.animateFloat(-6f, 6f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "bob")
+    val cover = RoundedCornerShape(32.dp)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         var shown by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { shown = true; delay(200); runCatching { focus.requestFocus() } }
-        AnimatedVisibility(shown, enter = fadeIn(tween(250)) + scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow), initialScale = .85f)) {
-            Column(
-                Modifier.padding(24.dp).fillMaxWidth().shadow(24.dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
-                    .background(Color(0xFF110C1C)).border(1.dp, glassBorder(accent), shape).padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(Modifier.size(64.dp).shadow(14.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .2f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
-                    Icon(Icons.Default.PlaylistAdd, null, Modifier.size(32.dp), tint = Color.White)
-                }
-                Text(title, Modifier.padding(top = 14.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Give it a name you will recognise", color = Color.White.copy(alpha = .7f), fontSize = 13.sp)
-                OutlinedTextField(
-                    name, { if (it.length <= 30) name = it }, Modifier.fillMaxWidth().padding(top = 16.dp).focusRequester(focus), singleLine = true,
-                    placeholder = { Text("Playlist name") },
-                    trailingIcon = { AnimatedVisibility(name.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) { IconButton({ name = "" }) { Icon(Icons.Default.Close, "Clear name") } } },
-                    supportingText = { Text("${name.length}/30", Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onConfirm(name.trim()) })
-                )
-                Text("Ideas", Modifier.align(Alignment.Start), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { ideas.forEach { i -> SuggestionChip({ name = i }, { Text(i) }) } }
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onDismiss, Modifier.weight(1f)) { Text("Cancel") }
-                    EmbossedIconButton({ if (name.isNotBlank()) onConfirm(name.trim()) }, Modifier.weight(1f).height(48.dp).graphicsLayer { alpha = if (name.isBlank()) 0.5f else 1f }, RoundedCornerShape(24.dp)) {
+        LaunchedEffect(Unit) { shown = true; delay(350); runCatching { focus.requestFocus() } }
+        AnimatedVisibility(shown, enter = fadeIn(tween(250)) + slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) { it / 6 }) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF050505)).systemBarsPadding().imePadding()) {
+                AuroraGlow(accent, Modifier.fillMaxSize())
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        EmbossedIconButton(onDismiss, Modifier.size(44.dp)) { Icon(Icons.Default.Close, "Close") }
+                        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
+                        Spacer(Modifier.size(44.dp))
+                    }
+                    Spacer(Modifier.height(28.dp))
+                    Box(
+                        Modifier.size(220.dp).graphicsLayer { translationY = bob; rotationZ = -2f }
+                            .shadow(28.dp, cover, ambientColor = accent, spotColor = accent).clip(cover)
+                            .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .65f))))
+                            .border(1.dp, Color.White.copy(alpha = .25f), cover),
+                        Alignment.BottomStart
+                    ) {
+                        Icon(Icons.Default.QueueMusic, null, Modifier.align(Alignment.TopEnd).padding(16.dp).size(36.dp), tint = Color.White.copy(alpha = .85f))
+                        Text(name.ifBlank { "Your playlist" }, Modifier.padding(18.dp), fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.height(28.dp))
+                    OutlinedTextField(
+                        name, { if (it.length <= 30) name = it }, Modifier.fillMaxWidth().focusRequester(focus), singleLine = true,
+                        placeholder = { Text("Name your playlist") },
+                        trailingIcon = { AnimatedVisibility(name.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) { IconButton({ name = "" }) { Icon(Icons.Default.Close, "Clear name") } } },
+                        supportingText = { Text("${name.length}/30", Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onConfirm(name.trim()) })
+                    )
+                    Text("Ideas", Modifier.align(Alignment.Start).padding(top = 6.dp, bottom = 6.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { ideas.forEach { i -> SuggestionChip({ name = i }, { Text(i) }) } }
+                    Spacer(Modifier.height(24.dp))
+                    EmbossedIconButton({ if (name.isNotBlank()) onConfirm(name.trim()) },
+                        Modifier.fillMaxWidth().height(56.dp).graphicsLayer { alpha = if (name.isBlank()) 0.5f else 1f }, RoundedCornerShape(28.dp)) {
                         Text(confirmLabel, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+    }
+}
+
+/** Bolder, tighter headings used across the whole app. */
+val NyxenTypography = Typography().let { b ->
+    b.copy(
+        headlineLarge = b.headlineLarge.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineMedium = b.headlineMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineSmall = b.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+        titleLarge = b.titleLarge.copy(fontWeight = FontWeight.Bold),
+        titleMedium = b.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+    )
+}
+
+/** Large page title with a quiet subtitle. */
+@Composable
+fun PageHeader(title: String, subtitle: String, modifier: Modifier = Modifier, trailing: @Composable () -> Unit = {}) {
+    Reveal(0) {
+        Row(modifier.fillMaxWidth().padding(top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                Text(subtitle, fontSize = 13.sp, color = Color.White.copy(alpha = .65f))
+            }
+            trailing()
+        }
+    }
+}
+
+/** Compact shortcut tile: accent icon block plus a label. Springs down when pressed. */
+@Composable
+fun QuickTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "qt")
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        modifier.height(56.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Color.Black.copy(alpha = .38f))
+            .border(1.dp, Color.White.copy(alpha = .12f), shape).clickable(src, null, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(56.dp).background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
+            Icon(icon, null, tint = Color.White)
+        }
+        Text(label, Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
