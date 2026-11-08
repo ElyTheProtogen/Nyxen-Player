@@ -34,6 +34,9 @@ import com.mono.player.ui.GroupCard
 import com.mono.player.ui.HeroCard
 import com.mono.player.ui.HomeHeader
 import com.mono.player.ui.MiniPlayer
+import com.mono.player.ui.NyxenTypography
+import com.mono.player.ui.PageHeader
+import com.mono.player.ui.QuickTile
 import com.mono.player.ui.NamePlaylistDialog
 import com.mono.player.ui.isGmail
 import com.mono.player.ui.playsText
@@ -119,7 +122,7 @@ class MainActivity : ComponentActivity() {
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
             val accent by animateColorAsState(Themes[themeIdx].accent, tween(600), label = "accent")
-            MaterialTheme(colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
+            MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
                 CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
                     App(themeIdx, { themeIdx = it }, haptics, { haptics = it })
@@ -354,6 +357,22 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         val hero = cur ?: recent.firstOrNull()
                         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                             item(key = "hdr") { HomeHeader(profName, tracks.size) { sub = 6; scope.launch { pager.animateScrollToPage(4) } } }
+                            item(key = "quick") {
+                                Reveal(40) {
+                                    Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            QuickTile(Icons.Default.Shuffle, "Shuffle all", Modifier.weight(1f)) {
+                                                if (tracks.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(tracks, kotlin.random.Random.nextInt(tracks.size)) } else msg = "Import some music first"
+                                            }
+                                            QuickTile(Icons.Default.Favorite, "Favorites", Modifier.weight(1f)) { libCat = 4; openGroup = null; prefs.edit().putInt("libcat", 4).apply(); scope.launch { pager.animateScrollToPage(1) } }
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            QuickTile(Icons.Default.TrendingUp, "Most replayed", Modifier.weight(1f)) { openPlId = -1L; scope.launch { pager.animateScrollToPage(3) } }
+                                            QuickTile(Icons.Default.History, "Recently played", Modifier.weight(1f)) { openPlId = -2L; scope.launch { pager.animateScrollToPage(3) } }
+                                        }
+                                    }
+                                }
+                            }
                             if (tracks.isEmpty()) item(key = "empty") { EmptyState("Your library is empty", "Add songs to start listening", "Import music") { picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) } }
                             else {
                                 hero?.let { h -> item(key = "hero") { HeroCard(h, h.id == curIdL, playing) { val l = recent.ifEmpty { tracks }; play(l, l.indexOfFirst { it.id == h.id }.coerceAtLeast(0)) } } }
@@ -366,6 +385,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     }
                     1 -> {
                         BackHandler(openGroup != null) { openGroup = null }
+                        PageHeader("Library", remember(tracks) { "${tracks.size} songs · ${tracks.distinctBy { it.album }.size} albums" })
                         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             EmbossedIconButton({ picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import", Modifier.padding(horizontal = 18.dp)) }
                             var sm by remember { mutableStateOf(false) }
