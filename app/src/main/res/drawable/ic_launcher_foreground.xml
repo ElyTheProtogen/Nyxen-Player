@@ -1,13 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <!-- cyan neon ring: soft glow layers, then bright core -->
-    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#22FFFFFF" android:strokeWidth="11"/>
-    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#44FFFFFF" android:strokeWidth="7"/>
-    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#99FFFFFF" android:strokeWidth="3.4"/>
-    <path android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" android:strokeColor="#FFFFFF" android:strokeWidth="1.4"/>
-    <!-- neon N -->
-    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#26FFFFFF" android:strokeWidth="13" android:strokeLineCap="round" android:strokeLineJoin="round"/>
-    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#55FFFFFF" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round"/>
-    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#E8E8E8" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
-    <path android:pathData="M42,68 L42,40 L66,68 L66,40" android:strokeColor="#FFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <!-- N: soft glow layers, then bright white core -->
+    <path android:pathData="M30,70 L30,38 L54,70 L54,38" android:strokeColor="#1FFFFFFF" android:strokeWidth="13" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M30,70 L30,38 L54,70 L54,38" android:strokeColor="#40FFFFFF" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M30,70 L30,38 L54,70 L54,38" android:strokeColor="#FFFFFF" android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <!-- inner sound wave -->
+    <path android:pathData="M62,44 a14,14 0 0 1 0,20" android:strokeColor="#26FFFFFF" android:strokeWidth="8" android:strokeLineCap="round"/>
+    <path android:pathData="M62,44 a14,14 0 0 1 0,20" android:strokeColor="#E6E6E6" android:strokeWidth="3.2" android:strokeLineCap="round"/>
+    <!-- outer sound wave -->
+    <path android:pathData="M68,38 a22,22 0 0 1 0,32" android:strokeColor="#1AFFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
+    <path android:pathData="M68,38 a22,22 0 0 1 0,32" android:strokeColor="#B3FFFFFF" android:strokeWidth="2.6" android:strokeLineCap="round"/>
 </vector>
