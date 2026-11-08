@@ -53,6 +53,59 @@ import kotlinx.coroutines.delay
 
 private fun glassBorder(a: Color) = Brush.linearGradient(listOf(a.copy(alpha = .7f), Color.White.copy(alpha = .08f)))
 
+/** Soft animated aurora background used behind the playlist naming dialog. */
+@Composable
+fun AuroraGlow(accent: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "aurora")
+    val drift by transition.animateFloat(
+        initialValue = -0.12f,
+        targetValue = 0.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(7000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "auroraDrift"
+    )
+    val pulse by transition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "auroraPulse"
+    )
+
+    Box(
+        modifier.drawBehind {
+            val radius = size.maxDimension * 0.72f
+            val firstCenter = Offset(size.width * (0.24f + drift), size.height * 0.28f)
+            val secondCenter = Offset(size.width * (0.82f - drift), size.height * 0.72f)
+            val secondary = lerp(accent, Color(0xFF7657C8), 0.45f)
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(accent.copy(alpha = 0.24f * pulse), Color.Transparent),
+                    center = firstCenter,
+                    radius = radius
+                ),
+                radius = radius,
+                center = firstCenter
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(secondary.copy(alpha = 0.17f * pulse), Color.Transparent),
+                    center = secondCenter,
+                    radius = radius * 0.9f
+                ),
+                radius = radius * 0.9f,
+                center = secondCenter
+            )
+        }
+    )
+}
+
+
 /** Floating pill navigation: the selected tab grows and shows its name with a springy animation. */
 @Composable
 fun FloatingNav(selected: Int, onSelect: (Int) -> Unit) {
