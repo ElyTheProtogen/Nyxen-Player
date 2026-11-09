@@ -33,6 +33,7 @@ import com.mono.player.GlassCard
 import com.mono.player.LocalAccent
 import com.mono.player.LocalHaptics
 import com.mono.player.Reveal
+import com.mono.player.data.Track
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -125,10 +126,11 @@ fun SettingsScreen(
     autoImport: Boolean, onAuto: (Boolean) -> Unit, scanning: Boolean, onRescan: () -> Unit,
     haptics: Boolean, onHaptics: (Boolean) -> Unit, speed: Float, onSpeed: (Float) -> Unit,
     sleepAt: String, onSleep: (Int) -> Unit,
-    profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit
+    profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
+    tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit
 ) {
     BackHandler(sub != 0) { onSub(0) }
-    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account")
+    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats")
     AnimatedContent(sub, transitionSpec = {
         if (targetState > initialState)
             (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300)))
@@ -147,10 +149,23 @@ fun SettingsScreen(
                     MenuRow(Icons.Default.Equalizer, "Audio Studio", "Equalizer, bass, reverb", 90) { onSub(2) }
                     MenuRow(Icons.Default.Speed, "Playback", "Speed, sleep timer, haptics", 140) { onSub(4) }
                     MenuRow(Icons.Default.LibraryMusic, "Library & import", "Auto-import and rescan", 190) { onSub(3) }
+                    MenuRow(Icons.Default.BarChart, "Listening stats", "Top songs, artists and time listened", 215) { onSub(7) }
                     MenuRow(Icons.Default.Info, "About", "NyxenPlayer", 240) { onSub(5) }
                 }
                 1 -> Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Reveal(0) { Text("Choose a theme", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .8f)) }
+                    Reveal(0) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Match colors to album cover", fontWeight = FontWeight.SemiBold)
+                                    Text("The accent color follows the playing song's artwork", style = MaterialTheme.typography.bodySmall)
+                                }
+                                Switch(coverMatch, onCoverMatch)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Reveal(30) { Text("Choose a theme", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .8f)) }
                     Spacer(Modifier.height(12.dp))
                     FlowRow(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Arrangement.spacedBy(16.dp), maxItemsInEachRow = 4) {
                         Themes.forEachIndexed { i, t -> ThemeOrb(t, i == themeIdx, i * 45) { onTheme(i) } }
@@ -202,9 +217,13 @@ fun SettingsScreen(
                             AnimatedVisibility(scanning) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
                         }
                     }
+                    Reveal(110) {
+                        EmbossedIconButton(onImportFolder, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import a folder", Modifier.padding(horizontal = 18.dp)) }
+                    }
                     Reveal(140) { Text("Songs you remove from the library come back on the next scan. Files you imported by hand are kept.", style = MaterialTheme.typography.bodySmall) }
                 }
                 6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe)
+                7 -> StatsScreen(tracks)
                 else -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {

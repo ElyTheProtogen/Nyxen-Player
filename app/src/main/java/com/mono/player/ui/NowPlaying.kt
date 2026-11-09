@@ -1,6 +1,14 @@
 package com.mono.player.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -122,7 +130,8 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
 fun NowPlayingScreen(
     track: Track, tracks: List<Track>, playing: Boolean, pos: Long, duration: Long, mode: PlayMode, nextTitle: String?,
     onClose: () -> Unit, onPlayPause: () -> Unit, onNext: () -> Unit, onPrev: () -> Unit, onSeek: (Long) -> Unit,
-    onMode: () -> Unit, onFavorite: () -> Unit, onQueue: () -> Unit, onStudio: () -> Unit, onAddToPlaylist: () -> Unit
+    onMode: () -> Unit, onFavorite: () -> Unit, onQueue: () -> Unit, onStudio: () -> Unit, onAddToPlaylist: () -> Unit,
+    sleepActive: Boolean, onSleep: () -> Unit, lyrics: String?, onAddLyrics: () -> Unit, onClearLyrics: () -> Unit
 ) {
     val accent = LocalAccent.current
     var dragX by remember { mutableFloatStateOf(0f) }
@@ -134,6 +143,10 @@ fun NowPlayingScreen(
     val prog by animateFloatAsState((pos.toFloat() / duration.coerceAtLeast(1)).coerceIn(0f, 1f), tween(500, easing = LinearEasing), label = "pg")
     val drag = remember { mutableFloatStateOf(-1f) }
     val ring = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val burst = remember { Animatable(0f) }
+    val favNow by rememberUpdatedState(track.favorite)
+    var showLyrics by remember { mutableStateOf(false) }
     LaunchedEffect(playing) { if (playing) while (true) { ring.snapTo(0f); ring.animateTo(1f, tween(1500, easing = LinearOutSlowInEasing)) } }
 
     Box(
@@ -185,6 +198,8 @@ fun NowPlayingScreen(
                         translationX = shownX; rotationZ = shownX / 50f
                         alpha = 1f - (kotlin.math.abs(shownX) / 900f).coerceIn(0f, .6f)
                         scaleX = artScale; scaleY = artScale
+                    }.pointerInput(Unit) {
+                        detectTapGestures(onDoubleTap = { if (!favNow) { onFavorite(); scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(650)) } } })
                     }
                 ) {
                     listOf(0.84f to 0.30f, 0.92f to 0.50f).forEach { (sc, al) ->
@@ -194,6 +209,9 @@ fun NowPlayingScreen(
                     Crossfade(track.id, animationSpec = tween(500), label = "art") { id ->
                         Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().shadow(30.dp, RoundedCornerShape(34.dp), ambientColor = accent, spotColor = accent), 34.dp)
                     }
+                    Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.Center).size(110.dp).graphicsLayer {
+                        val b = burst.value; val k = 0.4f + 0.9f * b; scaleX = k; scaleY = k; alpha = kotlin.math.sin(b * Math.PI).toFloat()
+                    }, tint = Color.White)
                 }
             }
 
@@ -242,9 +260,11 @@ fun NowPlayingScreen(
             }
             Reveal(280) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
-                        ActionPill(Icons.Default.PlaylistAdd, "Add to playlist", onAddToPlaylist)
-                        ActionPill(Icons.Default.Equalizer, "Equalizer", onStudio)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActionPill(Icons.Default.PlaylistAdd, "Playlist", onAddToPlaylist)
+                        ActionPill(Icons.Default.Equalizer, "EQ", onStudio)
+                        ActionPill(Icons.Default.Bedtime, if (sleepActive) "Sleep on" else "Sleep", onSleep)
+                        ActionPill(Icons.Default.Notes, "Lyrics") { showLyrics = true }
                     }
                     Crossfade(nextTitle, label = "next") { nt ->
                         if (nt != null) Row(
@@ -257,6 +277,64 @@ fun NowPlayingScreen(
                             Text(nt, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
+                }
+            }
+        }
+        AnimatedVisibility(showLyrics, enter = fadeIn(tween(250)) + slideInVertically(tween(300)) { it / 4 }, exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 4 }) {
+            LyricsPanel(lyrics, pos, track.title, { showLyrics = false }, onAddLyrics, onClearLyrics)
+        }
+    }
+}
+
+private class LrcLine(val ms: Long, val text: String)
+
+/** Reads [mm:ss.xx] timestamps from an .lrc file. Returns nothing for plain text. */
+private fun parseLrc(text: String): List<LrcLine> {
+    val re = Regex("\\[(\\d{1,2}):(\\d{2})(?:[.:](\\d{1,3}))?]")
+    val out = ArrayList<LrcLine>()
+    text.lines().forEach { line ->
+        val stamps = re.findAll(line).toList()
+        if (stamps.isEmpty()) return@forEach
+        val body = line.replace(re, "").trim()
+        stamps.forEach { m ->
+            val min = m.groupValues[1].toLong(); val sec = m.groupValues[2].toLong()
+            val frac = m.groupValues[3].padEnd(3, '0').take(3).toLong()
+            out.add(LrcLine(min * 60_000 + sec * 1000 + frac, body))
+        }
+    }
+    return out.sortedBy { it.ms }
+}
+
+/** Full-screen lyrics. Timed (.lrc) lyrics highlight and scroll with the song; plain text just scrolls. */
+@Composable
+private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -> Unit, onAdd: () -> Unit, onClear: () -> Unit) {
+    val lines = remember(lyrics) { if (lyrics.isNullOrBlank()) emptyList() else parseLrc(lyrics) }
+    val synced = lines.isNotEmpty()
+    val plain = remember(lyrics) { if (lyrics.isNullOrBlank() || synced) emptyList() else lyrics.lines() }
+    val current = if (synced) lines.indexOfLast { it.ms <= pos }.coerceAtLeast(0) else -1
+    val state = rememberLazyListState()
+    LaunchedEffect(current) { if (synced) state.animateScrollToItem((current - 2).coerceAtLeast(0)) }
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f)).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding()) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EmbossedIconButton(onClose, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close lyrics") }
+                Text(title, Modifier.weight(1f).padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!lyrics.isNullOrBlank()) TextButton(onClear) { Text("Remove") }
+            }
+            if (lyrics.isNullOrBlank()) {
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.Notes, null, Modifier.size(56.dp), tint = Color.White.copy(alpha = .6f))
+                    Text("No lyrics yet", Modifier.padding(top = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Pick a .lrc (timed) or .txt file from your phone for this song.", Modifier.padding(top = 6.dp, bottom = 18.dp), color = Color.White.copy(alpha = .7f))
+                    EmbossedIconButton(onAdd, Modifier.height(48.dp), RoundedCornerShape(24.dp)) { Text("Add lyrics file", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold) }
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), state, contentPadding = PaddingValues(vertical = 40.dp)) {
+                    if (synced) itemsIndexed(lines) { i, l ->
+                        val a by animateFloatAsState(if (i == current) 1f else 0.4f, tween(250), label = "ly")
+                        Text(l.text.ifBlank { "·" }, Modifier.padding(vertical = 8.dp), fontSize = if (i == current) 26.sp else 20.sp,
+                            fontWeight = if (i == current) FontWeight.Black else FontWeight.Medium, color = Color.White.copy(alpha = a))
+                    } else items(plain.size) { i -> Text(plain[i].ifBlank { " " }, Modifier.padding(vertical = 4.dp), fontSize = 18.sp, color = Color.White) }
                 }
             }
         }
