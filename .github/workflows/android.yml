@@ -1,0 +1,32 @@
+name: Nyxen Player - Generate SHA-1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-sha1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate debug keystore and SHA-1
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore nyxen-debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Nyxen Player,O=Nyxen,C=US"
+
+          keytool -list -v \
+            -keystore nyxen-debug.keystore \
+            -alias androiddebugkey \
+            -storepass android > SHA1.txt
+
+      - name: Upload SHA-1 text file
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nyxen-Player-SHA1
+          path: SHA1.txt
