@@ -34,6 +34,9 @@ import com.mono.player.ui.GroupCard
 import com.mono.player.ui.HeroCard
 import com.mono.player.ui.HomeHeader
 import com.mono.player.ui.MiniPlayer
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import kotlinx.coroutines.flow.flowOf
 import com.mono.player.ui.NyxenTypography
 import com.mono.player.ui.PageHeader
 import com.mono.player.ui.QuickTile
@@ -121,11 +124,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
-            val accent by animateColorAsState(Themes[themeIdx].accent, tween(600), label = "accent")
+            var coverMatch by remember { mutableStateOf(prefs.getBoolean("covermatch", true)) }
+            var coverAccent by remember { mutableStateOf<Color?>(null) }
+            val accent by animateColorAsState(if (coverMatch) (coverAccent ?: Themes[themeIdx].accent) else Themes[themeIdx].accent, tween(700), label = "accent")
             MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
                 CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
-                    App(themeIdx, { themeIdx = it }, haptics, { haptics = it })
+                    App(themeIdx, { themeIdx = it }, haptics, { haptics = it },
+                        coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it })
                 }
             }
         }
@@ -138,12 +144,32 @@ fun android.content.Context.findActivity(): android.app.Activity? {
     return null
 }
 
+/** Picks a bright, saturated color from cover art (small sample, no extra library). */
+fun dominantColor(bytes: ByteArray): Color? {
+    val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val small = android.graphics.Bitmap.createScaledBitmap(bmp, 24, 24, true)
+    val hsv = FloatArray(3); var best = 0f; var bestHsv: FloatArray? = null
+    for (x in 0 until 24) for (y in 0 until 24) {
+        android.graphics.Color.colorToHSV(small.getPixel(x, y), hsv)
+        val score = hsv[1] * hsv[2]
+        if (hsv[2] > 0.25f && hsv[1] > 0.25f && score > best) { best = score; bestHsv = hsv.copyOf() }
+    }
+    val h = bestHsv ?: return null
+    return Color(android.graphics.Color.HSVToColor(floatArrayOf(h[0], h[1].coerceIn(0.5f, 1f), maxOf(h[2], 0.85f))))
+}
+
+fun smartIcon(id: Long): ImageVector = when (id) {
+    -1L -> Icons.Default.TrendingUp; -2L -> Icons.Default.History; -3L -> Icons.Default.FiberNew
+    -4L -> Icons.Default.NightsStay; -5L -> Icons.Default.Timelapse; else -> Icons.Default.RadioButtonUnchecked
+}
+
 fun mi(t: Track) = MediaItem.Builder().setMediaId("${t.id}").setUri(t.uri)
     .setMediaMetadata(MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album).build()).build()
 
 fun fmt(ms: Long): String { val s = (ms / 1000).coerceAtLeast(0); return "%d:%02d".format(s / 60, s % 60) }
 
 private object ArtCache {
+    var version by mutableIntStateOf(0)
     val lru = object : LruCache<Long, ImageBitmap>(24 * 1024 * 1024) { override fun sizeOf(key: Long, value: ImageBitmap) = value.width * value.height * 4 }
 }
 
@@ -151,7 +177,7 @@ private object ArtCache {
 @Composable
 fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
     val dao = Db.get(LocalContext.current).dao()
-    val bmp by produceState<ImageBitmap?>(t?.let { ArtCache.lru.get(it.id) }, t?.id) {
+    val bmp by produceState<ImageBitmap?>(t?.let { ArtCache.lru.get(it.id) }, t?.id, ArtCache.version) {
         val id = t?.id
         if (id == null) { value = null; return@produceState }
         val hit = ArtCache.lru.get(id)
@@ -168,8 +194,9 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit) {
+fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
     val accent = LocalAccent.current
@@ -208,6 +235,10 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var openPlId by remember { mutableStateOf<Long?>(null) }
     var renamePl by remember { mutableStateOf<Playlist?>(null) }
     var delPl by remember { mutableStateOf<Playlist?>(null) }
+    var editFor by remember { mutableStateOf<Track?>(null) }
+    var selected by remember { mutableStateOf(setOf<Long>()) }
+    var addMany by remember { mutableStateOf<List<Long>?>(null) }
+    var sleepMin by remember { mutableIntStateOf(0) }
     var askPerm by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -222,7 +253,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     fun requestScan() { if (hasAudioPerm()) rescan(true) else askPerm = true }
     fun wipeAll() { scope.launch {
         c?.run { stop(); clearMediaItems() }
-        dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists()
+        dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
         profName = ""; profEmail = ""; sub = 0; restored = false; curId = null; greeted = false; started = false
@@ -251,7 +282,17 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
-    LaunchedEffect(sleepEnd) { if (sleepEnd > 0) { delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0)); c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished" } }
+    LaunchedEffect(sleepEnd) {
+        if (sleepEnd > 0) {
+            try {
+                val fade = 20_000L
+                delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
+                val steps = 40
+                for (k in 1..steps) { c?.volume = 1f - k / steps.toFloat(); delay(fade / steps) }
+                c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished"
+            } finally { c?.volume = 1f }
+        }
+    }
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
     LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
     LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(700); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
@@ -266,11 +307,51 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             if (!started) { started = true; if (autoImport && !hasAudioPerm()) askPerm = true else { if (autoImport && System.currentTimeMillis() - prefs.getLong("lastScan", 0L) > 5 * 60_000L) rescan(); askNotif() } }
         }
     }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree: Uri? ->
+        if (tree != null) scope.launch {
+            msg = "Scanning folder..."
+            val r = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.takePersistableUriPermission(tree, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                val found = ArrayList<Uri>()
+                val ok = setOf("mp3", "wav", "ogg", "m4a")
+                fun walk(d: androidx.documentfile.provider.DocumentFile?) {
+                    d?.listFiles()?.forEach { f -> if (f.isDirectory) walk(f) else if ((f.name ?: "").substringAfterLast('.', "").lowercase() in ok) found.add(f.uri) }
+                }
+                walk(androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, tree))
+                Importer.import(ctx, found)
+            }
+            msg = "Folder import: added ${r.added}, duplicates ${r.duplicates}, failed ${r.failed}"
+        }
+    }
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u: Uri? ->
+        val t = editFor
+        if (u != null && t != null) scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(u)?.use { it.readBytes() } }.getOrNull()?.let { dao.setArtwork(t.id, Importer.small(it)) }
+            }
+            ArtCache.lru.remove(t.id); ArtCache.version++; msg = "Cover updated"
+        }
+    }
+    val lyricsPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u: Uri? ->
+        val id = curId?.toLongOrNull()
+        if (u != null && id != null) scope.launch {
+            val text = withContext(Dispatchers.IO) { runCatching { ctx.contentResolver.openInputStream(u)?.bufferedReader()?.use { it.readText() } }.getOrNull() }
+            if (!text.isNullOrBlank()) { dao.setLyrics(Lyrics(id, text.take(200_000))); msg = "Lyrics added" } else msg = "Couldn't read that file"
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
-        scope.launch { val r = Importer.import(ctx, uris); msg = "Added ${r.added}, duplicates ${r.duplicates}, failed ${r.failed}" }
+        scope.launch { val r = withContext(Dispatchers.IO) { Importer.import(ctx, uris) }; msg = "Added ${r.added}, duplicates ${r.duplicates}, failed ${r.failed}" }
     }
     val curIdL = curId?.toLongOrNull()
     val cur = remember(tracks, curIdL) { tracks.firstOrNull { it.id == curIdL } }
+    LaunchedEffect(curIdL, coverMatch) {
+        if (!coverMatch) onCover(null) else {
+            val id = curIdL
+            onCover(if (id == null) null else withContext(Dispatchers.Default) { runCatching { dao.artwork(id)?.let { dominantColor(it) } }.getOrNull() })
+        }
+    }
+    val lyricsFlow = remember(curIdL) { if (curIdL == null) flowOf<String?>(null) else dao.lyricsFlow(curIdL) }
+    val lyrics by lyricsFlow.collectAsState(null)
     fun closeApp() {
         prefs.edit().putLong("lastPos", c?.currentPosition ?: 0L).apply()
         AudioFx.save(ctx)
@@ -294,19 +375,22 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         val t = list[i]; var menu by remember { mutableStateOf(false) }
         val isCur = t.id == curIdL
         val shape = RoundedCornerShape(20.dp)
-        val bg by animateColorAsState(if (isCur) accent.copy(alpha = .22f) else Color.Black.copy(alpha = .28f), tween(300), label = "rowbg")
+        val isSel = t.id in selected
+        val bg by animateColorAsState(if (isSel) accent.copy(alpha = .4f) else if (isCur) accent.copy(alpha = .22f) else Color.Black.copy(alpha = .28f), tween(300), label = "rowbg")
         val src = remember { MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
         val sc by animateFloatAsState(if (pressed) 0.97f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "rowpress")
         Row(
             Modifier.fillMaxWidth().padding(vertical = 4.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(bg)
                 .border(1.dp, if (isCur) accent.copy(alpha = .7f) else Color.White.copy(alpha = .08f), shape)
-                .clickable(src, null) { play(list, i) }.padding(10.dp),
+                .combinedClickable(src, null, onClick = { if (selected.isNotEmpty()) selected = if (isSel) selected - t.id else selected + t.id else play(list, i) },
+                    onLongClick = { selected = if (isSel) selected - t.id else selected + t.id }).padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(54.dp)) {
                 Art(t, Modifier.fillMaxSize())
                 if (isCur) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = .45f)), Alignment.Center) { NowPlayingBars(playing, Modifier.size(22.dp)) }
+                if (isSel) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(accent.copy(alpha = .75f)), Alignment.Center) { Icon(Icons.Default.Check, "Selected", tint = Color.White) }
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -323,6 +407,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                     DropdownMenuItem({ Text("Add to queue") }, { c?.addMediaItem(mi(t)); menu = false })
                     DropdownMenuItem({ Text(if (t.favorite) "Unfavorite" else "Favorite") }, { scope.launch { dao.setFav(t.id, !t.favorite) }; menu = false })
                     DropdownMenuItem({ Text("Add to playlist") }, { addFor = t; menu = false })
+                    DropdownMenuItem({ Text("Edit info") }, { editFor = t; menu = false })
                     DropdownMenuItem({ Text("Remove from library") }, { scope.launch { dao.delete(t) }; menu = false })
                 }
             }
@@ -337,6 +422,19 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
         Scaffold(containerColor = Color.Transparent, bottomBar = {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 12.dp).padding(bottom = 8.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
+                AnimatedVisibility(selected.isNotEmpty(), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = .75f))
+                            .border(1.dp, accent.copy(alpha = .7f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${selected.size} selected", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = Color.White)
+                        IconButton({ addMany = selected.toList() }) { Icon(Icons.Default.PlaylistAdd, "Add selected to playlist") }
+                        IconButton({ val ids = selected; scope.launch { ids.forEach { dao.setFav(it, true) } }; msg = "Added to favorites"; selected = emptySet() }) { Icon(Icons.Default.Favorite, "Favorite selected") }
+                        IconButton({ val ids = selected; scope.launch { tracks.filter { it.id in ids }.forEach { dao.delete(it) } }; selected = emptySet() }) { Icon(Icons.Default.Delete, "Remove selected") }
+                        IconButton({ selected = emptySet() }) { Icon(Icons.Default.Close, "Clear selection") }
+                    }
+                }
                 MiniPlayer(cur, playing, { miniProg }, { full = true }, { c?.let { if (it.isPlaying) it.pause() else it.play() } },
                     { c?.seekToNextMediaItem() }, { c?.seekToPreviousMediaItem() })
                 FloatingNav(tab) { i -> scope.launch { pager.animateScrollToPage(i) } }
@@ -433,12 +531,22 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         BackHandler(openPlId != null && tab == 3) { openPlId = null }
                         val mostList = remember(tracks) { tracks.filter { it.playCount > 0 }.sortedByDescending { it.playCount }.take(50) }
                         val recentList = remember(tracks) { tracks.filter { it.lastPlayed > 0 }.sortedByDescending { it.lastPlayed }.take(50) }
+                        val weekList = remember(tracks) { val cut = System.currentTimeMillis() - 7L * 24 * 3600 * 1000; tracks.filter { it.addedAt > cut }.sortedByDescending { it.addedAt } }
+                        val lateList = remember(tracks) {
+                            tracks.filter { t -> t.lastPlayed > 0 && java.util.Calendar.getInstance().apply { timeInMillis = t.lastPlayed }.get(java.util.Calendar.HOUR_OF_DAY).let { h -> h >= 22 || h < 5 } }
+                        }
+                        val longList = remember(tracks) { tracks.filter { it.durationMs >= 5 * 60_000L }.sortedByDescending { it.durationMs }.take(100) }
+                        val neverList = remember(tracks) { tracks.filter { it.playCount == 0 }.take(100) }
+                        val smartMap = remember(mostList, recentList, weekList, lateList, longList, neverList) {
+                            linkedMapOf(-1L to ("Most replayed" to mostList), -2L to ("Recently played" to recentList), -3L to ("Added this week" to weekList),
+                                -4L to ("Late night plays" to lateList), -5L to ("Long songs" to longList), -6L to ("Never played" to neverList))
+                        }
                         AnimatedContent(openPlId, transitionSpec = {
                             if (targetState != null) (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(200)))
                             else (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(200)))
                         }, label = "pl") { openId ->
                             val smart = openId != null && openId < 0
-                            val pl = if (smart) Playlist(openId ?: -1L, if (openId == -1L) "Most replayed" else "Recently played") else playlists.firstOrNull { it.id == openId }
+                            val pl = if (smart) Playlist(openId ?: -1L, smartMap[openId ?: -1L]?.first ?: "Playlist") else playlists.firstOrNull { it.id == openId }
                             val shape = RoundedCornerShape(22.dp)
                             if (pl == null) Column {
                                 @Composable fun SmartRow(id: Long, name: String, list: List<Track>, icon: ImageVector) {
@@ -465,8 +573,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                                     EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
                                 }
                                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                                    item(key = "smart-most") { SmartRow(-1L, "Most replayed", mostList, Icons.Default.TrendingUp) }
-                                    item(key = "smart-recent") { SmartRow(-2L, "Recently played", recentList, Icons.Default.History) }
+                                    smartMap.forEach { (id, v) -> item(key = "smart$id") { SmartRow(id, v.first, v.second, smartIcon(id)) } }
                                     if (playlists.isEmpty()) item(key = "none") { EmptyState("No custom playlists yet", "Tap New to create one") }
                                     items(playlists, key = { it.id }) { p ->
                                         val pts by dao.playlistTracksFlow(p.id).collectAsState(emptyList())
@@ -488,7 +595,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                                 }
                             } else Column {
                                 val flowPts by dao.playlistTracksFlow(pl.id).collectAsState(emptyList())
-                                val pts = if (smart) (if (pl.id == -1L) mostList else recentList) else flowPts
+                                val pts = if (smart) (smartMap[pl.id]?.second ?: emptyList()) else flowPts
                                 var pmenu by remember { mutableStateOf(false) }
                                 Row(Modifier.padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                     EmbossedIconButton({ openPlId = null }, Modifier.size(40.dp)) { Icon(Icons.Default.ArrowBack, "Back to playlists") }
@@ -547,9 +654,10 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         autoImport, { autoImport = it; prefs.edit().putBoolean("auto", it).apply(); if (it) requestScan() }, scanning, { requestScan() },
                         haptics, { setHaptics(it); prefs.edit().putBoolean("haptics", it).apply() }, speed, { speed = it; prefs.edit().putFloat("speed", it).apply() },
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
-                        { min -> sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
+                        { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
-                        { profName = ""; profEmail = ""; prefs.edit().remove("pname").remove("pemail").apply(); greeted = false; sub = 0 }, { wipeAll() })
+                        { profName = ""; profEmail = ""; prefs.edit().remove("pname").remove("pemail").apply(); greeted = false; sub = 0 }, { wipeAll() },
+                        tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) })
                 }
             }
             }
@@ -568,7 +676,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                 onFavorite = { scope.launch { dao.setFav(t.id, !t.favorite) } },
                 onQueue = { showQueue = true },
                 onStudio = { full = false; sub = 2; scope.launch { pager.animateScrollToPage(4) } },
-                onAddToPlaylist = { addFor = t }
+                onAddToPlaylist = { addFor = t },
+                sleepActive = sleepEnd > 0,
+                onSleep = {
+                    val nxt = if (sleepEnd == 0L) 15 else when (sleepMin) { 15 -> 30; 30 -> 60; else -> 0 }
+                    sleepMin = nxt; sleepEnd = if (nxt > 0) System.currentTimeMillis() + nxt * 60_000L else 0L
+                    msg = if (nxt > 0) "Sleep timer: $nxt min" else "Sleep timer off"
+                },
+                lyrics = lyrics, onAddLyrics = { lyricsPicker.launch("*/*") }, onClearLyrics = { scope.launch { dao.clearLyrics(t.id) } }
             )
         }
         Banner(msg, Modifier.align(Alignment.TopCenter))
@@ -578,6 +693,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         AnimatedVisibility(!booted, exit = fadeOut(tween(600))) { SplashScreen() }
     }
 
+    BackHandler(selected.isNotEmpty()) { selected = emptySet() }
     BackHandler(full) { full = false }
     if (askPerm) AlertDialog({ askPerm = false; askNotif() }, title = { Text("Find your music?") },
         text = { Text("NyxenPlayer needs access to audio files on your device so it can find and add your .mp3, .m4a, .ogg and .wav songs automatically. It only reads music files and never uploads them.") },
@@ -588,6 +704,29 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         AlertDialog({ delPl = null }, title = { Text("Delete playlist?") }, text = { Text("\"${p.name}\" will be deleted. Your songs stay in the library.") },
             confirmButton = { TextButton({ scope.launch { dao.clearPlaylist(p.id); dao.deletePlaylist(p.id) }; if (openPlId == p.id) openPlId = null; delPl = null }) { Text("Delete", color = Color(0xFFFF6B6B)) } },
             dismissButton = { TextButton({ delPl = null }) { Text("Cancel") } })
+    }
+    addMany?.let { ids ->
+        AlertDialog({ addMany = null }, confirmButton = { TextButton({ addMany = null }) { Text("Cancel") } }, title = { Text("Add ${ids.size} songs to playlist") }, text = {
+            if (playlists.isEmpty()) Text("Create a playlist first.") else LazyColumn { items(playlists) { p ->
+                ListItem({ Text(p.name) }, Modifier.clickable {
+                    scope.launch { var pos = dao.count(p.id); ids.forEach { dao.addToPlaylist(PlaylistTrack(p.id, it, pos++)) } }
+                    msg = "Added to ${p.name}"; addMany = null; selected = emptySet()
+                }) } } })
+    }
+    editFor?.let { t ->
+        var title by remember(t.id) { mutableStateOf(t.title) }
+        var artist by remember(t.id) { mutableStateOf(t.artist) }
+        var album by remember(t.id) { mutableStateOf(t.album) }
+        AlertDialog({ editFor = null }, title = { Text("Edit song info") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true)
+                OutlinedTextField(artist, { artist = it }, label = { Text("Artist") }, singleLine = true)
+                OutlinedTextField(album, { album = it }, label = { Text("Album") }, singleLine = true)
+                TextButton({ coverPicker.launch("image/*") }) { Text("Choose cover from gallery") }
+            }
+        },
+            confirmButton = { TextButton({ if (title.isNotBlank()) scope.launch { dao.editInfo(t.id, title.trim(), artist.trim().ifBlank { "Unknown artist" }, album.trim().ifBlank { "Unknown album" }) }; editFor = null }) { Text("Save") } },
+            dismissButton = { TextButton({ editFor = null }) { Text("Cancel") } })
     }
     if (showQueue) AlertDialog({ showQueue = false }, confirmButton = { TextButton({ showQueue = false }) { Text("Close") } }, title = { Text("Queue") }, text = {
         LazyColumn { items((c?.mediaItemCount ?: 0)) { i -> val m = c!!.getMediaItemAt(i)
