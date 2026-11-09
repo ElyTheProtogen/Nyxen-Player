@@ -12,6 +12,7 @@ data class Track(
     val playCount: Int = 0, val lastPlayed: Long = 0, val favorite: Boolean = false,
     val artwork: ByteArray? = null
 )
+@Entity(tableName = "lyrics") data class Lyrics(@PrimaryKey val trackId: Long, val text: String)
 @Entity(tableName = "playlists") data class Playlist(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String)
 @Entity(tableName = "playlist_tracks", primaryKeys = ["playlistId", "trackId"])
 data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: Int)
@@ -36,6 +37,12 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId=:id") suspend fun count(id: Long): Int
     @Query("SELECT COUNT(*) FROM tracks WHERE title=:t AND artist=:a AND durationMs=:d") suspend fun similar(t: String, a: String, d: Long): Int
     @Query("UPDATE tracks SET lastPlayed = :now WHERE id = :id") suspend fun touch(id: Long, now: Long)
+    @Query("SELECT text FROM lyrics WHERE trackId=:id") fun lyricsFlow(id: Long): Flow<String?>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun setLyrics(l: Lyrics)
+    @Query("DELETE FROM lyrics WHERE trackId=:id") suspend fun clearLyrics(id: Long)
+    @Query("DELETE FROM lyrics") suspend fun wipeLyrics()
+    @Query("UPDATE tracks SET title=:t, artist=:a, album=:al WHERE id=:id") suspend fun editInfo(id: Long, t: String, a: String, al: String)
+    @Query("UPDATE tracks SET artwork=:art WHERE id=:id") suspend fun setArtwork(id: Long, art: ByteArray?)
     @Query("DELETE FROM tracks") suspend fun wipeTracks()
     @Query("DELETE FROM playlist_tracks") suspend fun wipePlaylistTracks()
     @Query("DELETE FROM playlists") suspend fun wipePlaylists()
@@ -45,13 +52,17 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Query("DELETE FROM playlists WHERE id=:id") suspend fun deletePlaylist(id: Long)
     @Query("DELETE FROM playlist_tracks WHERE playlistId=:id") suspend fun clearPlaylist(id: Long)
 }
-@Database(entities = [Track::class, Playlist::class, PlaylistTrack::class], version = 1, exportSchema = false)
+@Database(entities = [Track::class, Playlist::class, PlaylistTrack::class, Lyrics::class], version = 2, exportSchema = false)
 abstract class Db : RoomDatabase() {
     abstract fun dao(): MusicDao
     companion object {
         @Volatile private var i: Db? = null
         fun get(c: Context) = i ?: synchronized(this) {
-            i ?: Room.databaseBuilder(c.applicationContext, Db::class.java, "mono.db").build().also { i = it }
+            i ?: Room.databaseBuilder(c.applicationContext, Db::class.java, "mono.db").addMigrations(object : androidx.room.migration.Migration(1, 2) {
+                override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL("CREATE TABLE IF NOT EXISTS `lyrics` (`trackId` INTEGER NOT NULL, `text` TEXT NOT NULL, PRIMARY KEY(`trackId`))")
+                }
+            }).build().also { i = it }
         }
     }
 }

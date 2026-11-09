@@ -10,7 +10,7 @@ data class ImportResult(val added: Int, val duplicates: Int, val failed: Int)
 object Importer {
     private val ext = setOf("mp3", "wav", "ogg", "m4a")
 
-    private fun small(b: ByteArray?): ByteArray? = b?.let {
+    fun small(b: ByteArray?): ByteArray? = b?.let {
         try {
             val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
             android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size, o)
