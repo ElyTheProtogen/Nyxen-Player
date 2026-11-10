@@ -68,20 +68,18 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
     LaunchedEffect(debounced, results.size) { if (debounced.length >= 2 && results.isNotEmpty()) { delay(1200); addRecent(debounced) } }
 
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(250), label = "glow")
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("SEARCH  /  YOUR LIBRARY", fontSize = 10.sp, letterSpacing = 2.sp, color = accent, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                Text("What are we\nlistening to?", style = MaterialTheme.typography.headlineLarge, lineHeight = 34.sp, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-            }
-            Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = .08f), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .1f))) {
-                Text("${tracks.size} TRACKS", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 9.sp, letterSpacing = 1.sp, color = Color.White.copy(alpha = .8f))
+        PageHeader("Search music", "${tracks.size} tracks in your collection") {
+            Surface(shape = RoundedCornerShape(18.dp), color = Color(0xDD121219),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))) {
+                Text("${tracks.size}", Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = accent)
             }
         }
         Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp).shadow((10 * glow).dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
-                .background(Color(0xF01A1A22)).border(1.dp, if (focused) accent.copy(alpha = .75f) else Color.White.copy(alpha = .10f), shape).padding(start = 18.dp, end = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 4.dp).shadow((8 * glow).dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
+                .background(Color(0xEC111118)).border(1.dp, if (focused) accent.copy(alpha = .72f) else Color.White.copy(alpha = .09f), shape).padding(start = 18.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Default.Search, null, tint = accent)
@@ -107,9 +105,17 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
         val state = when { debounced.isEmpty() -> 0; results.isEmpty() -> 1; else -> 2 }
         Crossfade(state, label = "search") { st ->
             when (st) {
-                0 -> if (recents.isEmpty()) Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Search, null, Modifier.size(56.dp), tint = accent.copy(alpha = .5f))
-                    Text("Find anything in your library", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 8.dp))
+                0 -> if (recents.isEmpty()) Column(
+                    Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xE8121219)).border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 22.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(accent.copy(alpha = .14f)), Alignment.Center) {
+                        Icon(Icons.Default.Search, null, Modifier.size(25.dp), tint = accent)
+                    }
+                    Text("Find anything in your library", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+                    Text("Search by title, artist, album, or genre.", color = Color.White.copy(alpha = .62f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 } else Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("RECENT SEARCHES", Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.8.sp, color = Color.White.copy(alpha = .62f), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -119,10 +125,20 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
                         recents.forEach { r -> AssistChip({ query = r }, { Text(r) }, leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(16.dp)) }) }
                     }
                 }
-                1 -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No matches found", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                1 -> Column(
+                    Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xE8121219)).border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 22.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(accent.copy(alpha = .14f)), Alignment.Center) {
+                        Icon(Icons.Default.Search, null, Modifier.size(25.dp), tint = accent)
+                    }
+                    Text("No matches found", color = Color.White, style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
                     Text("No results for \"$debounced\"", color = Color.White.copy(alpha = .65f), modifier = Modifier.padding(top = 6.dp))
-                    Text("Try a shorter word or another filter", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .6f))
+                    Text("Try a shorter word or another filter", style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(top = 2.dp))
                 }
                 else -> Column {
                     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -106,24 +106,27 @@ private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, 
     Reveal(delay) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(shape)
-                .background(Color(0xD91A1A22))
+                .background(Color(0xE8121219))
                 .border(1.dp, Color.White.copy(alpha = .09f), shape)
                 .clickable(onClick = onClick).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-                .padding(horizontal = 14.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .16f)), Alignment.Center) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp))
+                .background(Brush.linearGradient(listOf(accent.copy(alpha = .23f), accent.copy(alpha = .10f)))),
+                Alignment.Center) {
                 Icon(icon, null, Modifier.size(20.dp), tint = accent)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, fontWeight = FontWeight.Bold, letterSpacing = (-.1).sp, color = Color.White)
-                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .54f), maxLines = 1)
+                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .56f), maxLines = 1)
             }
-            Icon(Icons.Default.KeyboardArrowRight, null, Modifier.size(13.dp), tint = Color.White.copy(alpha = .38f))
+            Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), tint = Color.White.copy(alpha = .44f))
         }
     }
-}@Composable
+}
+@Composable
 private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val hapticsOn = LocalHaptics.current
@@ -166,9 +169,19 @@ fun SettingsScreen(
             (slideInHorizontally(tween(300)) { -it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300)))
     }, label = "settings") { s ->
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 14.dp, start = 2.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (s != 0) { EmbossedIconButton({ onSub(0) }, Modifier.size(44.dp)) { Icon(Icons.Default.ArrowBack, "Back to settings") }; Spacer(Modifier.width(12.dp)) }
-                if (titles[s].isNotBlank()) Text(titles[s].uppercase(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 14.dp, start = 2.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (s != 0) {
+                    EmbossedIconButton({ onSub(0) }, Modifier.size(42.dp)) { Icon(Icons.Default.ArrowBack, "Back to settings") }
+                    Spacer(Modifier.width(12.dp))
+                }
+                if (titles[s].isNotBlank()) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (s == 0) "NYXEN  /  CONTROL ROOM" else "SETTINGS",
+                            fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Black, color = LocalAccent.current)
+                        Text(titles[s], Modifier.padding(top = 2.dp), style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black, color = Color.White, maxLines = 1)
+                    }
+                }
             }
             when (s) {
                 0 -> Column(Modifier.verticalScroll(rememberScrollState())) {

@@ -86,8 +86,8 @@ fun isGmail(email: String): Boolean = GMAIL.matches(email.trim())
 private fun FeatureCard(icon: ImageVector, title: String, text: String) {
     val shape = RoundedCornerShape(22.dp)
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Color.White.copy(alpha = .06f))
-            .border(1.dp, Color.White.copy(alpha = .14f), shape).padding(16.dp),
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Color(0xE8121219))
+            .border(1.dp, LocalAccent.current.copy(alpha = .24f), shape).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(LocalAccent.current), Alignment.Center) { Icon(icon, null, tint = Color(0xFF101016)) }

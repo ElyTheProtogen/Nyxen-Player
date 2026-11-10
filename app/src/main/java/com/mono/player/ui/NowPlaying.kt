@@ -125,7 +125,7 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-            .clip(shape).background(Color(0xCC24232D)).border(1.dp, Color.White.copy(alpha = .12f), shape)
+            .clip(shape).background(Color(0xE8121219)).border(1.dp, Color.White.copy(alpha = .09f), shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 17.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
