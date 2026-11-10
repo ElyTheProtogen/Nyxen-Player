@@ -222,6 +222,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         var autoImport by remember { mutableStateOf(prefs.getBoolean("auto", true)) }
     var sub by remember { mutableIntStateOf(0) }
     var speed by remember { mutableFloatStateOf(prefs.getFloat("speed", 1f)) }
+    var autoResume by remember { mutableStateOf(prefs.getBoolean("autoResume", false)) }
+    var keepAwake by remember { mutableStateOf(prefs.getBoolean("keepAwake", false)) }
     var sleepEnd by remember { mutableLongStateOf(0L) }
     var restored by remember { mutableStateOf(false) }
     var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
@@ -278,7 +280,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         val m = c ?: return@LaunchedEffect
         if (restored || m.mediaItemCount > 0 || tracks.isEmpty()) return@LaunchedEffect
         val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
-        if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); restored = true; curId = "${tracks[i].id}" }
+        if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); if (autoResume) m.play(); restored = true; curId = "${tracks[i].id}" }
     }
     LaunchedEffect(full) { if (full) pos = c?.currentPosition ?: 0 }
     LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
@@ -296,6 +298,12 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         }
     }
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
+    LaunchedEffect(playing, keepAwake) {
+        val w = ctx.findActivity()?.window ?: return@LaunchedEffect
+        if (playing && keepAwake) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+    DisposableEffect(Unit) { onDispose { ctx.findActivity()?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
     LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
     LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(700); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
     LaunchedEffect(booted, profName, profEmail, profVerified) {
@@ -363,12 +371,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     BackHandler(tab != 0) { scope.launch { pager.animateScrollToPage(0) } }
     BackHandler(tab == 0) { closeApp() }
     fun play(list: List<Track>, i: Int) { if (c == null) { msg = "Player is still starting, try again"; return }; c?.run { setMediaItems(list.map(::mi), i, 0); mode.apply(this); prepare(); play() } }
+    fun pauseWithFade() { scope.launch { val player = c ?: return@launch; val original = player.volume; for (step in 1..8) { player.volume = original * (1f - step / 8f); delay(25) }; player.pause(); player.volume = original } }
 
     val sorted = remember(tracks, sort, asc) {
         val cmp: Comparator<Track> = when (sort) {
             "Artist" -> compareBy { it.artist.lowercase() }; "Album" -> compareBy { it.album.lowercase() }
-            "Duration" -> compareBy { it.durationMs }; "Added" -> compareBy { it.addedAt }
-            "Plays" -> compareBy { it.playCount }; else -> compareBy { it.title.lowercase() }
+            "Duration" -> compareBy { it.durationMs }; "Added", "Recently added" -> compareBy { it.addedAt }
+            "Plays" -> compareBy { it.playCount }; "Genre" -> compareBy { it.genre.lowercase() }
+            "Recently played" -> compareBy { it.lastPlayed }; else -> compareBy { it.title.lowercase() }
         }
         tracks.sortedWith(if (asc) cmp else cmp.reversed())
     }
@@ -491,7 +501,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                             var sm by remember { mutableStateOf(false) }
                             Box {
                                 EmbossedIconButton({ sm = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Sort: $sort", Modifier.padding(horizontal = 16.dp)) }
-                                DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Duration", "Added", "Plays").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; prefs.edit().putString("sort", o).apply(); sm = false }) } }
+                                DropdownMenu(sm, { sm = false }) { listOf("Title", "Artist", "Album", "Genre", "Duration", "Added", "Recently added", "Plays", "Recently played").forEach { o -> DropdownMenuItem({ Text(o) }, { sort = o; prefs.edit().putString("sort", o).apply(); sm = false }) } }
                             }
                             EmbossedIconButton({ if (sorted.isNotEmpty()) { mode = PlayMode.SHUFFLE; prefs.edit().putInt("mode", mode.ordinal).apply(); play(sorted, kotlin.random.Random.nextInt(sorted.size)) } }, Modifier.size(40.dp)) { Icon(Icons.Default.Shuffle, "Shuffle all") }
                             EmbossedIconButton({ asc = !asc; prefs.edit().putBoolean("asc", asc).apply() }, Modifier.size(40.dp)) { val rot by animateFloatAsState(if (asc) 0f else 180f, tween(250), label = "sort"); Icon(Icons.Default.ArrowUpward, "Toggle sort direction", Modifier.rotate(rot)) }
@@ -539,9 +549,53 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         }
                         val longList = remember(tracks) { tracks.filter { it.durationMs >= 5 * 60_000L }.sortedByDescending { it.durationMs }.take(100) }
                         val neverList = remember(tracks) { tracks.filter { it.playCount == 0 }.take(100) }
-                        val smartMap = remember(mostList, recentList, weekList, lateList, longList, neverList) {
-                            linkedMapOf(-1L to ("Most replayed" to mostList), -2L to ("Recently played" to recentList), -3L to ("Added this week" to weekList),
-                                -4L to ("Late night plays" to lateList), -5L to ("Long songs" to longList), -6L to ("Never played" to neverList))
+                        val smartMap = remember(tracks, mostList, recentList, weekList, lateList, longList, neverList) {
+                            val now = System.currentTimeMillis()
+                            val day = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                            val week = now - 7L * 24 * 60 * 60 * 1000
+                            val month = now - 30L * 24 * 60 * 60 * 1000
+                            fun byLastPlayed(test: (java.util.Calendar) -> Boolean) = tracks.filter { t ->
+                                t.lastPlayed > 0 && test(java.util.Calendar.getInstance().apply { timeInMillis = t.lastPlayed })
+                            }.sortedByDescending { it.lastPlayed }
+                            fun byAdded(test: (java.util.Calendar) -> Boolean) = tracks.filter { t ->
+                                test(java.util.Calendar.getInstance().apply { timeInMillis = t.addedAt })
+                            }.sortedByDescending { it.addedAt }
+                            linkedMapOf(
+                                -1L to ("Most replayed" to mostList),
+                                -2L to ("Recently played" to recentList),
+                                -3L to ("Added this week" to weekList),
+                                -4L to ("Late night plays" to lateList),
+                                -5L to ("Long songs" to longList),
+                                -6L to ("Never played" to neverList),
+                                -7L to ("Added today" to byAdded { it.timeInMillis >= day }),
+                                -8L to ("Added this month" to byAdded { it.timeInMillis >= month }),
+                                -9L to ("Played today" to tracks.filter { it.lastPlayed >= day }.sortedByDescending { it.lastPlayed }),
+                                -10L to ("Played this week" to tracks.filter { it.lastPlayed >= week }.sortedByDescending { it.lastPlayed }),
+                                -11L to ("Played this month" to tracks.filter { it.lastPlayed >= month }.sortedByDescending { it.lastPlayed }),
+                                -12L to ("Forgotten tracks" to tracks.filter { it.lastPlayed > 0 && it.lastPlayed < month }.sortedBy { it.lastPlayed }),
+                                -13L to ("Short tracks" to tracks.filter { it.durationMs in 1L until 180_000L }.sortedBy { it.durationMs }),
+                                -14L to ("Medium tracks" to tracks.filter { it.durationMs in 180_000L until 300_000L }.sortedBy { it.durationMs }),
+                                -15L to ("Epic tracks" to tracks.filter { it.durationMs >= 10 * 60_000L }.sortedByDescending { it.durationMs }),
+                                -16L to ("One-play wonders" to tracks.filter { it.playCount == 1 }.sortedByDescending { it.lastPlayed }),
+                                -17L to ("Favorite tracks" to tracks.filter { it.favorite }.sortedByDescending { it.lastPlayed }),
+                                -18L to ("Non-favorites" to tracks.filter { !it.favorite }.sortedByDescending { it.playCount }),
+                                -19L to ("Unknown artists" to tracks.filter { it.artist.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -20L to ("Unknown albums" to tracks.filter { it.album.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -21L to ("No genre tagged" to tracks.filter { it.genre.isBlank() || it.genre.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -22L to ("Morning sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 5..11 }),
+                                -23L to ("Afternoon sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 12..16 }),
+                                -24L to ("Evening sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 17..21 }),
+                                -25L to ("Night sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 22..23 || it.get(java.util.Calendar.HOUR_OF_DAY) in 0..4 }),
+                                -26L to ("Weekend additions" to byAdded { it.get(java.util.Calendar.DAY_OF_WEEK) in setOf(java.util.Calendar.SATURDAY, java.util.Calendar.SUNDAY) }),
+                                -27L to ("Unplayed short tracks" to tracks.filter { it.playCount == 0 && it.durationMs in 1L until 180_000L }),
+                                -28L to ("Unplayed long tracks" to tracks.filter { it.playCount == 0 && it.durationMs >= 5 * 60_000L }),
+                                -29L to ("Most recent favorites" to tracks.filter { it.favorite }.sortedByDescending { it.addedAt }),
+                                -30L to ("Recently discovered" to tracks.sortedByDescending { it.addedAt }.take(30)),
+                                -31L to ("Least played" to tracks.filter { it.playCount > 0 }.sortedBy { it.playCount }.take(100))
+                            )
                         }
                         AnimatedContent(openPlId, transitionSpec = {
                             if (targetState != null) (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(200)))
@@ -659,7 +713,9 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
                         { profName = ""; profEmail = ""; profVerified = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
-                        tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified)
+                        tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
+                        autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
+                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() })
                 }
             }
             }
@@ -671,7 +727,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                 track = t, tracks = tracks, playing = playing, pos = pos, duration = ((c?.duration ?: 0L).takeIf { it > 0 } ?: t.durationMs),
                 mode = mode,
                 nextTitle = c?.let { m -> if (m.hasNextMediaItem()) m.getMediaItemAt(m.nextMediaItemIndex).mediaMetadata.title?.toString() else null },
-                onClose = { full = false }, onPlayPause = { c?.let { if (it.isPlaying) it.pause() else it.play() } },
+                onClose = { full = false }, onPlayPause = { c?.let { if (it.isPlaying) pauseWithFade() else it.play() } },
                 onNext = { c?.seekToNextMediaItem() }, onPrev = { c?.seekToPreviousMediaItem() },
                 onSeek = { ms -> c?.seekTo(ms); pos = ms },
                 onMode = { mode = mode.next(); prefs.edit().putInt("mode", mode.ordinal).apply(); c?.let { mode.apply(it) } },
@@ -732,9 +788,46 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             confirmButton = { TextButton({ if (title.isNotBlank()) scope.launch { dao.editInfo(t.id, title.trim(), artist.trim().ifBlank { "Unknown artist" }, album.trim().ifBlank { "Unknown album" }) }; editFor = null }) { Text("Save") } },
             dismissButton = { TextButton({ editFor = null }) { Text("Cancel") } })
     }
-    if (showQueue) AlertDialog({ showQueue = false }, confirmButton = { TextButton({ showQueue = false }) { Text("Close") } }, title = { Text("Queue") }, text = {
-        LazyColumn { items((c?.mediaItemCount ?: 0)) { i -> val m = c!!.getMediaItemAt(i)
-            ListItem({ Text(m.mediaMetadata.title?.toString() ?: "Track") }, Modifier.clickable { c?.seekTo(i, 0); showQueue = false }) } } })
+    if (showQueue) AlertDialog(
+        onDismissRequest = { showQueue = false },
+        title = { Text("Queue · ${c?.mediaItemCount ?: 0} tracks") },
+        text = {
+            Column(Modifier.heightIn(max = 440.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            val player = c
+                            if (player != null) {
+                                val ids = (0 until player.mediaItemCount).mapNotNull { player.getMediaItemAt(it).mediaId.toLongOrNull() }
+                                if (ids.isNotEmpty()) {
+                                    val stamp = java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                                    val pid = dao.addPlaylist(Playlist(name = "Queue · $stamp"))
+                                    ids.forEachIndexed { index, id -> dao.addToPlaylist(PlaylistTrack(pid, id, index)) }
+                                    msg = "Queue saved as a playlist"
+                                } else msg = "Queue is empty"
+                            }
+                        }
+                    }) { Text("Save as playlist") }
+                    TextButton(onClick = { c?.clearMediaItems(); showQueue = false; msg = "Queue cleared" }) { Text("Clear queue") }
+                }
+                LazyColumn {
+                    items((c?.mediaItemCount ?: 0)) { i ->
+                        val player = c
+                        val item = player?.getMediaItemAt(i)
+                        val current = i == player?.currentMediaItemIndex
+                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp).background(if (current) LocalAccent.current.copy(alpha = .18f) else Color.Transparent, RoundedCornerShape(12.dp)).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (current) "▶" else "${i + 1}", modifier = Modifier.width(28.dp), color = if (current) LocalAccent.current else Color.White.copy(alpha = .65f))
+                            Text(item?.mediaMetadata?.title?.toString() ?: "Track", Modifier.weight(1f).clickable { player?.seekTo(i, 0); showQueue = false }, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White)
+                            IconButton(onClick = { player?.moveMediaItem(i, i - 1) }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Move up") }
+                            IconButton(onClick = { player?.moveMediaItem(i, i + 1) }, enabled = i < (player?.mediaItemCount ?: 0) - 1) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                            IconButton(onClick = { player?.removeMediaItem(i) }) { Icon(Icons.Default.Close, "Remove from queue") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton({ showQueue = false }) { Text("Done") } }
+    )
     addFor?.let { t -> AlertDialog({ addFor = null }, confirmButton = { TextButton({ addFor = null }) { Text("Cancel") } }, title = { Text("Add to playlist") }, text = {
         if (playlists.isEmpty()) Text("Create a playlist first.") else LazyColumn { items(playlists) { p ->
             ListItem({ Text(p.name) }, Modifier.clickable { scope.launch { dao.addToPlaylist(PlaylistTrack(p.id, t.id, dao.count(p.id))) }; addFor = null }) } } }) }

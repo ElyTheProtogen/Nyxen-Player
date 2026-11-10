@@ -187,11 +187,16 @@ fun HomeHeader(name: String, songs: Int, onAvatar: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(greet, color = Color.White.copy(alpha = .75f))
                 Text(name.ifBlank { "Listener" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                Text("$songs songs in your library", fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(accent))
+                    Text("$songs tracks in your collection", fontSize = 12.sp, color = Color.White.copy(alpha = .68f))
+                }
             }
-            Box(Modifier.size(52.dp).shadow(12.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .2f), lerp(accent, Color.Black, .5f)))).clickable(onClick = onAvatar), Alignment.Center) {
-                Text((name.firstOrNull() ?: 'N').uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Box(Modifier.size(58.dp).shadow(16.dp, CircleShape, ambientColor = accent, spotColor = accent)
+                .border(1.dp, Color.White.copy(alpha = .28f), CircleShape).clip(CircleShape)
+                .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .24f), lerp(accent, Color.Black, .55f))))
+                .clickable(onClick = onAvatar), Alignment.Center) {
+                Text((name.firstOrNull() ?: 'N').uppercase(), fontSize = 21.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
     }
@@ -210,7 +215,10 @@ fun HeroCard(t: Track, current: Boolean, playing: Boolean, onPlay: () -> Unit) {
         ) {
             Art(t, Modifier.size(104.dp).shadow(16.dp, RoundedCornerShape(16.dp), ambientColor = accent, spotColor = accent)); Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(if (current && playing) "NOW PLAYING" else "CONTINUE LISTENING", fontSize = 11.sp, letterSpacing = 2.sp, color = Color.White.copy(alpha = .8f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (current && playing) Color(0xFF69E58B) else accent))
+                    Text(if (current && playing) "NOW PLAYING" else "PICK UP WHERE YOU LEFT OFF", fontSize = 9.sp, letterSpacing = 1.5.sp, color = Color.White.copy(alpha = .82f), maxLines = 1)
+                }
                 Text(t.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(t.artist, color = Color.White.copy(alpha = .75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))

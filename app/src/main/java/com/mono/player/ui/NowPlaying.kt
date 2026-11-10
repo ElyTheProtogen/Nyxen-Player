@@ -240,7 +240,7 @@ fun NowPlayingScreen(
                     WaveSeek(track.id, { prog }, drag, { f -> onSeek((f * duration).toLong()) }, accent, Modifier.fillMaxWidth().height(54.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                         Text(fmt(if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos), color = Color.White, fontSize = 12.sp)
-                        Spacer(Modifier.weight(1f)); Text(fmt(duration), color = Color.White, fontSize = 12.sp)
+                        Spacer(Modifier.weight(1f)); Text("-${fmt((duration - (if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos)).coerceAtLeast(0L))}  ·  ${fmt(duration)}", color = Color.White, fontSize = 12.sp)
                     }
                 }
             }
@@ -312,6 +312,7 @@ private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -
     val synced = lines.isNotEmpty()
     val plain = remember(lyrics) { if (lyrics.isNullOrBlank() || synced) emptyList() else lyrics.lines() }
     val current = if (synced) lines.indexOfLast { it.ms <= pos }.coerceAtLeast(0) else -1
+    var lyricScale by remember { mutableFloatStateOf(1f) }
     val state = rememberLazyListState()
     LaunchedEffect(current) { if (synced) state.animateScrollToItem((current - 2).coerceAtLeast(0)) }
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f)).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding()) {
@@ -319,7 +320,11 @@ private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -
             Row(verticalAlignment = Alignment.CenterVertically) {
                 EmbossedIconButton(onClose, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close lyrics") }
                 Text(title, Modifier.weight(1f).padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!lyrics.isNullOrBlank()) TextButton(onClear) { Text("Remove") }
+                if (!lyrics.isNullOrBlank()) {
+                    TextButton(onClear) { Text("Remove") }
+                    TextButton({ lyricScale = (lyricScale + 0.15f).coerceAtMost(1.6f) }) { Text("A+") }
+                    TextButton({ lyricScale = (lyricScale - 0.15f).coerceAtLeast(0.7f) }) { Text("A−") }
+                }
             }
             if (lyrics.isNullOrBlank()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -332,9 +337,9 @@ private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -
                 LazyColumn(Modifier.fillMaxSize(), state, contentPadding = PaddingValues(vertical = 40.dp)) {
                     if (synced) itemsIndexed(lines) { i, l ->
                         val a by animateFloatAsState(if (i == current) 1f else 0.4f, tween(250), label = "ly")
-                        Text(l.text.ifBlank { "·" }, Modifier.padding(vertical = 8.dp), fontSize = if (i == current) 26.sp else 20.sp,
+                        Text(l.text.ifBlank { "·" }, Modifier.padding(vertical = 8.dp), fontSize = (if (i == current) 26f else 20f).times(lyricScale).sp,
                             fontWeight = if (i == current) FontWeight.Black else FontWeight.Medium, color = Color.White.copy(alpha = a))
-                    } else items(plain.size) { i -> Text(plain[i].ifBlank { " " }, Modifier.padding(vertical = 4.dp), fontSize = 18.sp, color = Color.White) }
+                    } else items(plain.size) { i -> Text(plain[i].ifBlank { " " }, Modifier.padding(vertical = 4.dp), fontSize = (18f * lyricScale).sp, color = Color.White) }
                 }
             }
         }
