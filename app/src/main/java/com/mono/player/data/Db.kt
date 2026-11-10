@@ -21,7 +21,7 @@ data class PlaylistTrack(val playlistId: Long, val trackId: Long, val position: 
     @Query("SELECT id, uri, title, artist, album, genre, durationMs, addedAt, playCount, lastPlayed, favorite, NULL AS artwork FROM tracks") fun tracks(): Flow<List<Track>>
     @Query("SELECT artwork FROM tracks WHERE id=:id") suspend fun artwork(id: Long): ByteArray?
     @Query("UPDATE tracks SET favorite=:f WHERE id=:id") suspend fun setFav(id: Long, f: Boolean)
-    @Query("SELECT title || '|' || artist || '|' || durationMs FROM tracks") suspend fun keys(): List<String>
+    @Query("SELECT uri FROM tracks") suspend fun keys(): List<String>
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insert(t: Track): Long // -1 = duplicate
     @Update suspend fun update(t: Track)
     @Delete suspend fun delete(t: Track) // library entry only, never the file
