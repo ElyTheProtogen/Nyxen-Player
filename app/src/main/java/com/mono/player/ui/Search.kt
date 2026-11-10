@@ -67,30 +67,39 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
     LaunchedEffect(debounced, results.size) { if (debounced.length >= 2 && results.isNotEmpty()) { delay(1200); addRecent(debounced) } }
 
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(250), label = "glow")
-    val shape = RoundedCornerShape(30.dp)
+    val shape = RoundedCornerShape(24.dp)
     Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("DISCOVER", fontSize = 9.sp, letterSpacing = 2.4.sp, color = accent, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("Find your next loop", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
+            }
+            Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = .08f), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .1f))) {
+                Text("${tracks.size} TRACKS", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 9.sp, letterSpacing = 1.sp, color = Color.White.copy(alpha = .8f))
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp).shadow((10 * glow).dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
-                .background(Color.Black.copy(alpha = .45f)).border(1.5.dp, accent.copy(alpha = .25f + .75f * glow), shape).padding(start = 16.dp, end = 6.dp),
+                .background(Brush.horizontalGradient(listOf(Color(0xE91B1A22), Color(0xE908080C)))).border(1.5.dp, accent.copy(alpha = .22f + .78f * glow), shape).padding(start = 18.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Default.Search, null, tint = accent)
             BasicTextField(
-                query, { query = it }, Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 14.dp).onFocusChanged { focused = it.isFocused },
+                query, { query = it }, Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 17.dp).onFocusChanged { focused = it.isFocused },
                 singleLine = true, textStyle = TextStyle(color = Color.White, fontSize = 16.sp), cursorBrush = SolidColor(accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { addRecent(query.trim()); focus.clearFocus() }),
-                decorationBox = { inner -> Box { if (query.isEmpty()) Text("Search songs, artists, albums", color = Color.White.copy(alpha = .5f)); inner() } }
+                decorationBox = { inner -> Box { if (query.isEmpty()) Text("Songs, artists, albums, genres…", color = Color.White.copy(alpha = .42f)); inner() } }
             )
             AnimatedVisibility(query.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
                 IconButton({ query = "" }) { Icon(Icons.Default.Close, "Clear search") }
             }
         }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            filters.forEachIndexed { i, f -> FilterChip(filter == i, { filter = i }, { Text(f) }) }
+            filters.forEachIndexed { i, f -> FilterChip(filter == i, { filter = i }, { Text(f, fontWeight = if (filter == i) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium) }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accent.copy(alpha = .24f), selectedLabelColor = Color.White, labelColor = Color.White.copy(alpha = .72f))) }
         }
         AnimatedVisibility(focused && suggestions.isNotEmpty()) {
-            FlowRow(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 suggestions.forEach { sg -> SuggestionChip({ query = sg }, { Text(sg) }) }
             }
         }
@@ -102,20 +111,24 @@ fun SearchScreen(tracks: List<Track>, prefs: SharedPreferences, row: @Composable
                     Text("Find anything in your library", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 8.dp))
                 } else Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Recent searches", Modifier.weight(1f))
+                        Text("RECENT SEARCHES", Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.6.sp, color = Color.White.copy(alpha = .7f), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         TextButton({ recents = emptyList(); prefs.edit().remove("recents").apply() }) { Text("Clear") }
                     }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         recents.forEach { r -> AssistChip({ query = r }, { Text(r) }, leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(16.dp)) }) }
                     }
                 }
                 1 -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No results for \"$debounced\"", color = Color.White.copy(alpha = .8f))
+                    Text("No matches found", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    Text("No results for \"$debounced\"", color = Color.White.copy(alpha = .65f), modifier = Modifier.padding(top = 6.dp))
                     Text("Try a shorter word or another filter", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .6f))
                 }
                 else -> Column {
-                    Text("${results.size} results", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .7f))
-                    LazyColumn { items(results.size, key = { results[it].id }) { Box(Modifier.animateItem()) { row(results, it) } } }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("MATCHING YOUR VIBE", Modifier.weight(1f), fontSize = 9.sp, letterSpacing = 1.6.sp, color = Color.White.copy(alpha = .58f), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text("${results.size} RESULTS", fontSize = 10.sp, letterSpacing = .8.sp, color = accent, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    }
+                    LazyColumn(contentPadding = PaddingValues(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) { items(results.size, key = { results[it].id }) { Box(Modifier.animateItem()) { row(results, it) } } }
                 }
             }
         }
