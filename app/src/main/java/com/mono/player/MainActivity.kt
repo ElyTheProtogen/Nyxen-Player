@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
                 CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
-                    App(themeIdx, { themeIdx = it }, haptics, { haptics = it },
+                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it },
                         coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it })
                 }
             }
@@ -209,7 +209,7 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
+fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
     val accent = LocalAccent.current
