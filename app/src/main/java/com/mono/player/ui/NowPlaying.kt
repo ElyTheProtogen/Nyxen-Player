@@ -104,9 +104,9 @@ private fun PlayOrb(playing: Boolean, ring: Animatable<Float, AnimationVector1D>
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "orb")
     Box(Modifier.size(112.dp), Alignment.Center) {
-        Box(Modifier.size(88.dp).graphicsLayer { val s = 1f + 0.4f * ring.value; scaleX = s; scaleY = s; alpha = (1f - ring.value) * 0.55f * on }.border(2.dp, accent, CircleShape))
+        Box(Modifier.size(96.dp).graphicsLayer { val s = 1f + 0.28f * ring.value; scaleX = s; scaleY = s; alpha = (1f - ring.value) * 0.45f * on }.border(1.5.dp, accent, CircleShape))
         Box(
-            Modifier.size(88.dp).graphicsLayer { scaleX = sc; scaleY = sc }.shadow(20.dp, CircleShape, ambientColor = accent, spotColor = accent)
+            Modifier.size(84.dp).graphicsLayer { scaleX = sc; scaleY = sc }.shadow(12.dp, CircleShape, ambientColor = accent, spotColor = accent)
                 .clip(CircleShape).background(Color.White)
                 .clickable(src, null) { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
             Alignment.Center
@@ -125,7 +125,7 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-            .clip(shape).background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = .16f), Color.White.copy(alpha = .07f)))).border(1.dp, Color.White.copy(alpha = .22f), shape)
+            .clip(shape).background(Color(0xCC24232D)).border(1.dp, Color.White.copy(alpha = .12f), shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 17.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -158,7 +158,7 @@ fun NowPlayingScreen(
 
     Box(
         Modifier.fillMaxSize().graphicsLayer { translationY = shownY.coerceAtLeast(0f); alpha = 1f - (shownY / 1400f).coerceIn(0f, .5f) }
-            .background(Brush.verticalGradient(listOf(Color(0xFF17131F), Color(0xFF08080D), Color.Black)))
+            .background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))
     ) {
         Crossfade(track.id, animationSpec = tween(700), label = "bg") { id ->
             Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f; alpha = 0.5f }.blur(40.dp))
@@ -191,9 +191,9 @@ fun NowPlayingScreen(
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NowPlayingBars(playing, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp))
-                        Text("NYXEN SESSION", fontSize = 10.sp, letterSpacing = 2.6.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("NOW PLAYING", fontSize = 10.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Black, color = Color.White)
                     }
-                    Text("PERSONAL AUDIO", fontSize = 9.sp, letterSpacing = 1.4.sp, color = Color.White.copy(alpha = .62f))
+                    Text("YOUR SOUNDTRACK", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Color.White.copy(alpha = .54f))
                 }
                 EmbossedIconButton(onStudio, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
             }
@@ -229,9 +229,9 @@ fun NowPlayingScreen(
                     }, label = "title") { id ->
                         val t = tracks.firstOrNull { it.id == id } ?: track
                         Column {
-                            Text(t.title, Modifier.basicMarquee(), fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = (-.8).sp, color = Color.White, maxLines = 1, softWrap = false)
+                            Text(t.title, Modifier.basicMarquee(), fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp, color = Color.White, maxLines = 1, softWrap = false)
                             Text("${t.artist}  /  ${t.album}", color = Color.White.copy(alpha = .78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(playsText(t.playCount).uppercase(), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = accent)
+                            Text(playsText(t.playCount).uppercase(), fontSize = 9.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold, color = accent)
                         }
                     }
                     EmbossedIconButton(onFavorite, Modifier.size(48.dp)) {
