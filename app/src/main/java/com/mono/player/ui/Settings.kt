@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
@@ -46,7 +48,7 @@ import kotlinx.coroutines.launch
 /** Text is always white. Light-ended gradients get a dark tint (scrim) so white text stays readable. */
 data class AppTheme(val name: String, val top: Color, val mid: Color, val bottom: Color, val scrim: Float, val accent: Color)
 
-val Themes = listOf(
+private val BuiltInThemes = listOf(
     AppTheme("Monochrome", Color.Black, Color(0xFF3A3A3A), Color(0xFFBDBDBD), 0.18f, Color(0xFFC4C4C4)),
     AppTheme("Purple", Color(0xFF7B1FA2), Color(0xFF3A0D52), Color.Black, 0f, Color(0xFFB14BFF)),
     AppTheme("Blue", Color(0xFF0D47A1), Color(0xFF1E88E5), Color(0xFF81D4FA), 0.35f, Color(0xFF42A5F5)),
@@ -74,6 +76,28 @@ val Themes = listOf(
     AppTheme("Sky", Color(0xFF87CEEB), Color(0xFF2F6DB5), Color(0xFF0A1A3A), 0.35f, Color(0xFF7CC8FF)),
     AppTheme("Mono Dark", Color(0xFF1A1A1A), Color(0xFF0D0D0D), Color.Black, 0f, Color(0xFFFFFFFF))
 )
+
+val Themes = mutableListOf<AppTheme>().apply { addAll(BuiltInThemes) }
+
+fun restoreCustomThemes(context: android.content.Context) {
+    while (Themes.size > BuiltInThemes.size) Themes.removeAt(Themes.lastIndex)
+    val saved = context.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE).getString("customThemes", null) ?: return
+    runCatching {
+        val array = org.json.JSONArray(saved)
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            Themes.add(AppTheme(item.getString("name"), Color(item.getInt("top")), Color(item.getInt("mid")), Color(item.getInt("bottom")), item.getDouble("scrim").toFloat(), Color(item.getInt("accent"))))
+        }
+    }
+}
+
+private fun persistCustomThemes(context: android.content.Context) {
+    val array = org.json.JSONArray()
+    Themes.drop(BuiltInThemes.size).forEach { theme ->
+        array.put(org.json.JSONObject().put("name", theme.name).put("top", theme.top.toArgb()).put("mid", theme.mid.toArgb()).put("bottom", theme.bottom.toArgb()).put("scrim", theme.scrim.toDouble()).put("accent", theme.accent.toArgb()))
+    }
+    context.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE).edit().putString("customThemes", array.toString()).apply()
+}
 
 @Composable
 private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, onClick: () -> Unit) {
@@ -128,10 +152,11 @@ fun SettingsScreen(
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
     tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
     autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
-    wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean
+    wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean,
+    buttonSounds: Boolean, onButtonSounds: (Boolean) -> Unit, customFontName: String, onImportFont: () -> Unit
 ) {
     BackHandler(sub != 0) { onSub(0) }
-    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats", "Offline art & sound")
+    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats", "Offline art & sound", "Fonts & custom themes")
     AnimatedContent(sub, transitionSpec = {
         if (targetState > initialState)
             (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300)))
@@ -152,7 +177,8 @@ fun SettingsScreen(
                     MenuRow(Icons.Default.Speed, "Playback", "Speed, sleep timer, haptics", 140) { onSub(4) }
                     MenuRow(Icons.Default.LibraryMusic, "Library & import", "Auto-import and rescan", 190) { onSub(3) }
                     MenuRow(Icons.Default.BarChart, "Listening stats", "Top songs, artists and time listened", 215) { onSub(7) }
-                    MenuRow(Icons.Default.Info, "About", "NyxenPlayer", 240) { onSub(5) }
+                    MenuRow(Icons.Default.AutoAwesome, "Fonts & custom themes", "Import a font and save your own palettes", 235) { onSub(9) }
+                    MenuRow(Icons.Default.Info, "About", "Nyxen Player · version 1.3", 260) { onSub(5) }
                 }
                 1 -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     Reveal(0) {
@@ -175,6 +201,14 @@ fun SettingsScreen(
                 }
                 2 -> Studio()
                 4 -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Reveal(0) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("BUTTON SOUNDS", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Play a quiet click on Nyxen buttons", style = MaterialTheme.typography.bodySmall) }
+                                Switch(buttonSounds, onButtonSounds)
+                            }
+                        }
+                    }
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -238,15 +272,16 @@ fun SettingsScreen(
                     Reveal(140) { Text("Songs you remove from the library come back on the next scan. Files you imported by hand are kept.", style = MaterialTheme.typography.bodySmall) }
                 }
 
+                9 -> CustomizationSettings(customFontName, onImportFont, onTheme)
                 8 -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Text("WALLPAPER COLLECTION", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
-                            Text("Four original Nyxen wallpapers, available fully offline.", style = MaterialTheme.typography.bodySmall)
+                            Text("Eight original Nyxen wallpapers, available fully offline.", style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.height(14.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                val names = listOf("Theme", "Obsidian", "Violet", "Neon", "Aurora")
-                                (0..4).forEach { index ->
+                                val names = listOf("Theme", "Obsidian", "Violet", "Neon", "Aurora", "Ember", "Deep Sea", "Starlight", "Prism")
+                                (0..8).forEach { index ->
                                     Column(Modifier.width(78.dp).clickable { onWallpaper(index) }, horizontalAlignment = Alignment.CenterHorizontally) {
                                         Box(Modifier.size(72.dp, 112.dp).clip(RoundedCornerShape(13.dp))
                                             .border(if (wallpaperIdx == index) 2.dp else 1.dp, if (wallpaperIdx == index) LocalAccent.current else Color.White.copy(.18f), RoundedCornerShape(13.dp))) {
@@ -257,7 +292,11 @@ fun SettingsScreen(
                                                     1 -> R.drawable.nyxen_wallpaper_01
                                                     2 -> R.drawable.nyxen_wallpaper_02
                                                     3 -> R.drawable.nyxen_wallpaper_03
-                                                    else -> R.drawable.nyxen_wallpaper_04
+                                                    4 -> R.drawable.nyxen_wallpaper_04
+                                                    5 -> R.drawable.nyxen_wallpaper_05
+                                                    6 -> R.drawable.nyxen_wallpaper_06
+                                                    7 -> R.drawable.nyxen_wallpaper_07
+                                                    else -> R.drawable.nyxen_wallpaper_08
                                                 }
                                                 Image(painterResource(id), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             }
@@ -294,11 +333,67 @@ fun SettingsScreen(
                 else -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
-                            Text("NyxenPlayer", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Version 1.0", style = MaterialTheme.typography.bodySmall)
+                            Text("Nyxen Player", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Version 1.3 · Built for your library", style = MaterialTheme.typography.bodySmall, color = LocalAccent.current)
                             Spacer(Modifier.height(10.dp))
-                            Text("A local-first music player. Your music stays on your device and is never uploaded.")
+                            Text("A calm, offline-first music player for the songs you already own. Your library, playlists, listening history, imported fonts, themes, and artwork stay on this device.")
+                            Spacer(Modifier.height(8.dp))
+                            Text("Nyxen does not upload your music or require a streaming account to play local audio.", style = MaterialTheme.typography.bodySmall)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomizationSettings(customFontName: String, onImportFont: () -> Unit, onTheme: (Int) -> Unit) {
+    val context = LocalContext.current
+    var themeName by remember { mutableStateOf("") }
+    var accentHex by remember { mutableStateOf("#A855F7") }
+    var error by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("CUSTOM FONT", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
+            Text("Import a .ttf or .otf font. It is copied to private app storage and used across Nyxen.", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(10.dp))
+            Text(customFontName, style = MaterialTheme.typography.labelMedium, color = LocalAccent.current)
+            Spacer(Modifier.height(8.dp))
+            EmbossedIconButton(onImportFont, Modifier.fillMaxWidth().height(46.dp), RoundedCornerShape(23.dp)) {
+                Text(if (customFontName == "No custom font imported") "Import font file" else "Replace imported font", fontWeight = FontWeight.Bold)
+            }
+        }
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("CREATE A THEME", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
+            Text("Save a named accent palette. Your custom themes stay on this device.", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(themeName, { themeName = it.take(24); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Theme name") })
+            OutlinedTextField(accentHex, { accentHex = it.take(9).uppercase(); error = null }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Accent color (hex)") })
+            error?.let { Text(it, color = Color(0xFFFF7777), style = MaterialTheme.typography.bodySmall) }
+            Spacer(Modifier.height(8.dp))
+            EmbossedIconButton({
+                val parsed = runCatching { Color(android.graphics.Color.parseColor(accentHex)) }.getOrNull()
+                if (themeName.isBlank()) error = "Give your theme a name."
+                else if (parsed == null) error = "Enter a color such as #A855F7."
+                else {
+                    val accent = parsed
+                    Themes.add(AppTheme(themeName.trim(), lerp(accent, Color.Black, .62f), lerp(accent, Color.Black, .78f), Color.Black, .12f, accent))
+                    persistCustomThemes(context)
+                    onTheme(Themes.lastIndex)
+                    themeName = ""
+                    error = null
+                }
+            }, Modifier.fillMaxWidth().height(48.dp), RoundedCornerShape(24.dp)) { Text("Save and apply theme", fontWeight = FontWeight.Bold) }
+            if (Themes.size > BuiltInThemes.size) {
+                Spacer(Modifier.height(12.dp))
+                Text("SAVED THEMES", fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 11.sp)
+                Themes.drop(BuiltInThemes.size).forEachIndexed { index, theme ->
+                    Row(Modifier.fillMaxWidth().clickable { onTheme(BuiltInThemes.size + index) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(24.dp).clip(CircleShape).background(theme.accent))
+                        Spacer(Modifier.width(10.dp))
+                        Text(theme.name, Modifier.weight(1f))
+                        if (themeName == theme.name) Icon(Icons.Default.CheckCircle, "Selected", tint = LocalAccent.current)
                     }
                 }
             }

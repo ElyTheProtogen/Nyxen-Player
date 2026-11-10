@@ -99,7 +99,7 @@ private fun WaveSeek(seed: Long, progress: () -> Float, drag: MutableFloatState,
 private fun PlayOrb(playing: Boolean, ring: Animatable<Float, AnimationVector1D>, accent: Color, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val hapticsOn = LocalHaptics.current
-    val on by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "on")
+    val on by animateFloatAsState(if (playing) 1f else 0f, tween(220), label = "on")
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "orb")
@@ -160,7 +160,7 @@ fun NowPlayingScreen(
         Modifier.fillMaxSize().graphicsLayer { translationY = shownY.coerceAtLeast(0f); alpha = 1f - (shownY / 1400f).coerceIn(0f, .5f) }
             .background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))
     ) {
-        Crossfade(track.id, animationSpec = tween(700), label = "bg") { id ->
+        Crossfade(track.id, animationSpec = tween(260), label = "bg") { id ->
             Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f; alpha = 0.5f }.blur(40.dp))
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Black.copy(alpha = .26f), Color.Black.copy(alpha = .96f)))))
@@ -206,14 +206,14 @@ fun NowPlayingScreen(
                         alpha = 1f - (kotlin.math.abs(shownX) / 900f).coerceIn(0f, .6f)
                         scaleX = artScale; scaleY = artScale
                     }.pointerInput(Unit) {
-                        detectTapGestures(onDoubleTap = { if (!favNow) { onFavorite(); scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(650)) } } })
+                        detectTapGestures(onDoubleTap = { if (!favNow) { onFavorite(); scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(240)) } } })
                     }
                 ) {
                     listOf(0.84f to 0.30f, 0.92f to 0.50f).forEach { (sc, al) ->
                         Box(Modifier.fillMaxSize().graphicsLayer { scaleX = sc; scaleY = sc; translationY = size.height * (1f - sc) * 1.1f; alpha = al }
                             .clip(RoundedCornerShape(38.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .8f), accent.copy(alpha = .22f)))))
                     }
-                    Crossfade(track.id, animationSpec = tween(500), label = "art") { id ->
+                    Crossfade(track.id, animationSpec = tween(240), label = "art") { id ->
                         Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().shadow(34.dp, RoundedCornerShape(38.dp), ambientColor = accent, spotColor = accent).border(1.dp, Color.White.copy(alpha = .24f), RoundedCornerShape(38.dp)), 38.dp)
                     }
                     Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.Center).size(110.dp).graphicsLayer {
@@ -225,7 +225,7 @@ fun NowPlayingScreen(
             Reveal(100) {
                 Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     AnimatedContent(track.id, Modifier.weight(1f), transitionSpec = {
-                        (slideInVertically(tween(350)) { it / 2 } + fadeIn(tween(350))) togetherWith (slideOutVertically(tween(250)) { -it / 2 } + fadeOut(tween(250)))
+                        (slideInVertically(tween(220)) { it / 2 } + fadeIn(tween(220))) togetherWith (slideOutVertically(tween(250)) { -it / 2 } + fadeOut(tween(250)))
                     }, label = "title") { id ->
                         val t = tracks.firstOrNull { it.id == id } ?: track
                         Column {
@@ -288,7 +288,7 @@ fun NowPlayingScreen(
                 }
             }
         }
-        AnimatedVisibility(showLyrics, enter = fadeIn(tween(250)) + slideInVertically(tween(300)) { it / 4 }, exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 4 }) {
+        AnimatedVisibility(showLyrics, enter = fadeIn(tween(250)) + slideInVertically(tween(220)) { it / 4 }, exit = fadeOut(tween(160)) + slideOutVertically(tween(250)) { it / 4 }) {
             LyricsPanel(lyrics, pos, track.title, { showLyrics = false }, onAddLyrics, onClearLyrics)
         }
     }

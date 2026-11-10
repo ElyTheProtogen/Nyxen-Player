@@ -3,6 +3,9 @@ package com.mono.player
 import android.Manifest
 import android.content.ComponentName
 import android.graphics.BitmapFactory
+import android.graphics.Typeface
+import android.widget.Toast
+import java.io.File
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -66,6 +69,9 @@ import androidx.media3.common.PlaybackException
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.mono.player.ui.SettingsScreen
+import com.mono.player.ui.restoreCustomThemes
+import com.mono.player.LocalButtonSounds
+import androidx.compose.ui.text.font.FontFamily
 import com.mono.player.ui.Themes
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.absoluteValue
@@ -122,18 +128,31 @@ class MainActivity : ComponentActivity() {
         )
         AudioFx.load(this)
         val prefs = getSharedPreferences("mono", MODE_PRIVATE)
+        restoreCustomThemes(this)
         setContent {
+            var customFontPath by remember { mutableStateOf(prefs.getString("customFontPath", "") ?: "") }
+            var buttonSounds by remember { mutableStateOf(prefs.getBoolean("buttonSounds", false)) }
+            val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) runCatching {
+                    val file = File(filesDir, "nyxen-custom-font")
+                    contentResolver.openInputStream(uri)?.use { input -> file.outputStream().use(input::copyTo) }
+                    customFontPath = file.absolutePath
+                    prefs.edit().putString("customFontPath", customFontPath).apply()
+                }
+            }
+            val customFontFamily = remember(customFontPath) { runCatching { if (customFontPath.isBlank()) null else FontFamily(Typeface.createFromFile(customFontPath)) }.getOrNull() }
+            val typography = remember(customFontFamily) { NyxenTypography(customFontFamily) }
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
-            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 4)) }
+            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 8)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
             var coverMatch by remember { mutableStateOf(prefs.getBoolean("covermatch", true)) }
             var coverAccent by remember { mutableStateOf<Color?>(null) }
             val accent by animateColorAsState(if (coverMatch) (coverAccent ?: Themes[themeIdx].accent) else Themes[themeIdx].accent, tween(700), label = "accent")
-            MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
+            MaterialTheme(typography = typography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
-                CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
-                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it },
-                        coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it })
+                CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics, LocalButtonSounds provides buttonSounds) {
+                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it }, buttonSounds, { buttonSounds = it; prefs.edit().putBoolean("buttonSounds", it).apply() },
+                        coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it }, customFontPath, { fontPicker.launch(arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/vnd.ms-opentype")) })
                 }
             }
         }
@@ -209,7 +228,7 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
+fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, buttonSounds: Boolean, setButtonSounds: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit, customFontPath: String, onImportFont: () -> Unit) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
     val accent = LocalAccent.current
@@ -231,6 +250,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var addFor by remember { mutableStateOf<Track?>(null) }
     var showQueue by remember { mutableStateOf(false) }
     var newPl by remember { mutableStateOf(false) }
+    var pendingPlaylistMusicId by remember { mutableStateOf<Long?>(null) }
 
         var autoImport by remember { mutableStateOf(prefs.getBoolean("auto", true)) }
     var sub by remember { mutableIntStateOf(0) }
@@ -389,7 +409,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         ctx.findActivity()?.finishAndRemoveTask()
     }
     BackHandler(tab != 0) { scope.launch { pager.animateScrollToPage(0) } }
-    BackHandler(tab == 0) { closeApp() }
+    var lastHomeBack by remember { mutableLongStateOf(0L) }
+    BackHandler(tab == 0) {
+        val now = System.currentTimeMillis()
+        if (now - lastHomeBack < 2000L) closeApp() else {
+            lastHomeBack = now
+            Toast.makeText(ctx, "Press back again to exit Nyxen", Toast.LENGTH_SHORT).show()
+        }
+    }
     fun play(list: List<Track>, i: Int) { if (c == null) { msg = "Player is still starting, try again"; return }; c?.run { setMediaItems(list.map(::mi), i, 0); mode.apply(this); prepare(); play() } }
     fun pauseWithFade() { scope.launch { val player = c ?: return@launch; val original = player.volume; for (step in 1..8) { player.volume = original * (1f - step / 8f); delay(25) }; player.pause(); player.volume = original } }
 
@@ -456,7 +483,11 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                 1 -> com.mono.player.R.drawable.nyxen_wallpaper_01
                 2 -> com.mono.player.R.drawable.nyxen_wallpaper_02
                 3 -> com.mono.player.R.drawable.nyxen_wallpaper_03
-                else -> com.mono.player.R.drawable.nyxen_wallpaper_04
+                4 -> com.mono.player.R.drawable.nyxen_wallpaper_04
+                5 -> com.mono.player.R.drawable.nyxen_wallpaper_05
+                6 -> com.mono.player.R.drawable.nyxen_wallpaper_06
+                7 -> com.mono.player.R.drawable.nyxen_wallpaper_07
+                else -> com.mono.player.R.drawable.nyxen_wallpaper_08
             }
             Image(painterResource(wallpaper), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)))
@@ -745,7 +776,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
-                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" })
+                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont)
                 }
             }
             }
@@ -869,5 +900,40 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     addFor?.let { t -> AlertDialog({ addFor = null }, confirmButton = { TextButton({ addFor = null }) { Text("Cancel") } }, title = { Text("Add to playlist") }, text = {
         if (playlists.isEmpty()) Text("Create a playlist first.") else LazyColumn { items(playlists) { p ->
             ListItem({ Text(p.name) }, Modifier.clickable { scope.launch { dao.addToPlaylist(PlaylistTrack(p.id, t.id, dao.count(p.id))) }; addFor = null }) } } }) }
-    if (newPl) NamePlaylistDialog("New playlist", "", "Create", { newPl = false }) { n -> scope.launch { dao.addPlaylist(Playlist(name = n)) }; newPl = false }
+    pendingPlaylistMusicId?.let { playlistId ->
+        var chosen by remember(playlistId) { mutableStateOf(emptySet<Long>()) }
+        AlertDialog(
+            onDismissRequest = { pendingPlaylistMusicId = null },
+            title = { Text("Add music to playlist") },
+            text = {
+                if (tracks.isEmpty()) Text("Import music into your library first.")
+                else LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(tracks, key = { it.id }) { track ->
+                        Row(Modifier.fillMaxWidth().clickable { chosen = if (track.id in chosen) chosen - track.id else chosen + track.id }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(track.id in chosen, { checked -> chosen = if (checked) chosen + track.id else chosen - track.id })
+                            Column(Modifier.padding(start = 8.dp)) {
+                                Text(track.title, maxLines = 1)
+                                Text(track.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Color.White.copy(.65f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        var position = dao.count(playlistId)
+                        chosen.forEach { trackId -> dao.addToPlaylist(PlaylistTrack(playlistId, trackId, position++)) }
+                        msg = "${chosen.size} tracks added"
+                        pendingPlaylistMusicId = null
+                    }
+                }, enabled = chosen.isNotEmpty()) { Text("Add ${chosen.size}") }
+            },
+            dismissButton = { TextButton({ pendingPlaylistMusicId = null }) { Text("Done") } }
+        )
+    }
+    if (newPl) NamePlaylistDialog("New playlist", "", "Create", { newPl = false }, onAddMusic = { name ->
+        scope.launch { pendingPlaylistMusicId = dao.addPlaylist(Playlist(name = name)) }
+        newPl = false
+    }) { n -> scope.launch { dao.addPlaylist(Playlist(name = n)) }; newPl = false }
 }
