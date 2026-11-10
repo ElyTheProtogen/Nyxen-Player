@@ -85,6 +85,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -123,6 +124,7 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("mono", MODE_PRIVATE)
         setContent {
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
+            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 4)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
             var coverMatch by remember { mutableStateOf(prefs.getBoolean("covermatch", true)) }
             var coverAccent by remember { mutableStateOf<Color?>(null) }
@@ -130,7 +132,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
                 CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
-                    App(themeIdx, { themeIdx = it }, haptics, { haptics = it },
+                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it },
                         coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it })
                 }
             }
@@ -207,7 +209,7 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
+fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
     val accent = LocalAccent.current
@@ -267,6 +269,12 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     }
     fun hasAudioPerm() = ContextCompat.checkSelfPermission(ctx, audioPerm) == PackageManager.PERMISSION_GRANTED
     fun requestScan() { if (hasAudioPerm()) rescan(true) else askPerm = true }
+    fun importOfflinePack() {
+        scope.launch {
+            val added = withContext(Dispatchers.IO) { OfflinePackImporter.addToLibrary(ctx, dao) }
+            msg = if (added > 0) "$added offline tracks added to your library" else "Offline soundscapes are already in your library"
+        }
+    }
     fun wipeAll() { scope.launch {
         c?.run { stop(); clearMediaItems() }
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
@@ -443,6 +451,16 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     val g1 by animateColorAsState(th.mid, tween(700), label = "g1")
     val g2 by animateColorAsState(th.bottom, tween(700), label = "g2")
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(g0, g1, g2))).background(Color.Black.copy(alpha = th.scrim))) {
+        if (wallpaperIdx > 0) {
+            val wallpaper = when (wallpaperIdx) {
+                1 -> com.mono.player.R.drawable.nyxen_wallpaper_01
+                2 -> com.mono.player.R.drawable.nyxen_wallpaper_02
+                3 -> com.mono.player.R.drawable.nyxen_wallpaper_03
+                else -> com.mono.player.R.drawable.nyxen_wallpaper_04
+            }
+            Image(painterResource(wallpaper), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)))
+        }
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
         Scaffold(containerColor = Color.Transparent, bottomBar = {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 12.dp).padding(bottom = 8.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
@@ -727,7 +745,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
-                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() })
+                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" })
                 }
             }
             }
