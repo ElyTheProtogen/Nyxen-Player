@@ -256,6 +256,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var sub by remember { mutableIntStateOf(0) }
     var speed by remember { mutableFloatStateOf(prefs.getFloat("speed", 1f)) }
     var autoResume by remember { mutableStateOf(prefs.getBoolean("autoResume", false)) }
+    var rememberQueue by remember { mutableStateOf(prefs.getBoolean("rememberQueue", true)) }
+    val rememberQueueLatest by rememberUpdatedState(rememberQueue)
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keepAwake", false)) }
     var pauseOnDisconnect by remember { mutableStateOf(prefs.getBoolean("pauseOnDisconnect", true)) }
     var sleepFade by remember { mutableStateOf(prefs.getBoolean("sleepFade", true)) }
@@ -306,27 +308,61 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         profName = ""; profEmail = ""; profVerified = false; guestMode = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
+    fun persistQueuePosition(player: Player) {
+        if (!rememberQueueLatest) return
+        prefs.edit().putInt("savedQueueIndex", player.currentMediaItemIndex.coerceAtLeast(0))
+            .putLong("savedQueuePosition", player.currentPosition.coerceAtLeast(0L)).apply()
+    }
+    fun persistQueue(player: Player, force: Boolean = false) {
+        if (!force && !rememberQueueLatest) return
+        val ids = org.json.JSONArray()
+        for (index in 0 until player.mediaItemCount) {
+            player.getMediaItemAt(index).mediaId.toLongOrNull()?.let { ids.put(it) }
+        }
+        prefs.edit().putString("savedQueue", ids.toString())
+            .putInt("savedQueueIndex", player.currentMediaItemIndex.coerceAtLeast(0))
+            .putLong("savedQueuePosition", player.currentPosition.coerceAtLeast(0L)).apply()
+    }
     LaunchedEffect(Unit) {
         
         val f = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))).buildAsync()
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
             m.addListener(object : Player.Listener {
-                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() } }
+                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m) }
+                override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { persistQueue(m) }
                 override fun onPlayerError(error: PlaybackException) { msg = "Couldn't play this file. It may have been moved or deleted." }
-                override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) prefs.edit().putLong("lastPos", m.currentPosition).apply() }
+                override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) { prefs.edit().putLong("lastPos", m.currentPosition).apply(); persistQueuePosition(m) } }
             })
+            persistQueue(m)
         }, MoreExecutors.directExecutor())
     }
     DisposableEffect(c) { val old = c; onDispose { old?.release() } }
     LaunchedEffect(c, tracks.size) {
         val m = c ?: return@LaunchedEffect
         if (restored || m.mediaItemCount > 0 || tracks.isEmpty()) return@LaunchedEffect
-        val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
-        if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); if (autoResume) m.play(); restored = true; curId = "${tracks[i].id}" }
+        if (rememberQueue && prefs.contains("savedQueue")) {
+            val savedIds = runCatching {
+                val json = org.json.JSONArray(prefs.getString("savedQueue", "[]"))
+                (0 until json.length()).mapNotNull { index -> json.optLong(index).takeIf { it > 0L } }
+            }.getOrDefault(emptyList())
+            val savedTracks = savedIds.mapNotNull { id -> tracks.firstOrNull { it.id == id } }
+            if (savedTracks.isEmpty()) {
+                m.clearMediaItems(); restored = true; curId = null
+                return@LaunchedEffect
+            }
+            val index = prefs.getInt("savedQueueIndex", 0).coerceIn(0, savedTracks.lastIndex)
+            val position = prefs.getLong("savedQueuePosition", prefs.getLong("lastPos", 0L)).coerceAtLeast(0L)
+            m.setMediaItems(savedTracks.map(::mi), index, position)
+            mode.apply(m); m.prepare(); if (autoResume) m.play()
+            restored = true; curId = "${savedTracks[index].id}"
+        } else {
+            val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
+            if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); if (autoResume) m.play(); restored = true; curId = "${tracks[i].id}" }
+        }
     }
     LaunchedEffect(full) { if (full) pos = c?.currentPosition ?: 0 }
-    LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
+    LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) { prefs.edit().putLong("lastPos", p).apply(); c?.let(::persistQueuePosition) }; delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
     LaunchedEffect(sleepEnd, sleepFade) {
@@ -407,6 +443,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     val lyricsFlow = remember(curIdL) { if (curIdL == null) flowOf<String?>(null) else dao.lyricsFlow(curIdL) }
     val lyrics by lyricsFlow.collectAsState(null)
     fun closeApp() {
+        c?.let { persistQueue(it); persistQueuePosition(it) }
         prefs.edit().putLong("lastPos", c?.currentPosition ?: 0L).apply()
         AudioFx.save(ctx)
         c?.pause()
@@ -780,6 +817,11 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
+                        rememberQueue, { enabled ->
+                            rememberQueue = enabled
+                            if (enabled) { prefs.edit().putBoolean("rememberQueue", true).apply(); c?.takeIf { it.mediaItemCount > 0 }?.let { persistQueue(it, force = true) } }
+                            else prefs.edit().putBoolean("rememberQueue", false).remove("savedQueue").remove("savedQueueIndex").remove("savedQueuePosition").apply()
+                        },
                         keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont,
                         pauseOnDisconnect, { pauseOnDisconnect = it; prefs.edit().putBoolean("pauseOnDisconnect", it).apply() }, sleepFade, { sleepFade = it; prefs.edit().putBoolean("sleepFade", it).apply() })
                 }

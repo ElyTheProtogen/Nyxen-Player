@@ -151,7 +151,7 @@ fun SettingsScreen(
     sleepAt: String, onSleep: (Int) -> Unit,
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
     tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
-    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
+    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, rememberQueue: Boolean, onRememberQueue: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
     wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean,
     buttonSounds: Boolean, onButtonSounds: (Boolean) -> Unit, customFontName: String, onImportFont: () -> Unit,
     pauseOnDisconnect: Boolean, onPauseOnDisconnect: (Boolean) -> Unit, sleepFade: Boolean, onSleepFade: (Boolean) -> Unit
@@ -223,6 +223,11 @@ fun SettingsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) { Text("RESUME PLAYBACK ON LAUNCH", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Automatically continue your last song and position", style = MaterialTheme.typography.bodySmall) }
                                 Switch(autoResume, onAutoResume)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("SAVE PLAYBACK QUEUE", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Restore the same songs and position next time you open Nyxen", style = MaterialTheme.typography.bodySmall) }
+                                Switch(rememberQueue, onRememberQueue)
                             }
                             Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
