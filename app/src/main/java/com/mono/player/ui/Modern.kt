@@ -152,8 +152,8 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
         val shape = RoundedCornerShape(20.dp)
         Column(Modifier.padding(bottom = 8.dp)) {
             Row(
-                Modifier.fillMaxWidth().clip(shape).background(Color(0xF01B1B22))
-                    .border(1.dp, Color.White.copy(alpha = .10f), shape)
+                Modifier.fillMaxWidth().clip(shape).background(Color(0xF013131A))
+                    .border(1.dp, Color.White.copy(alpha = .09f), shape)
                     .clickable(onClick = onOpen)
                     .drawBehind {
                         val h = 2.dp.toPx()
@@ -184,72 +184,113 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
 fun HomeHeader(name: String, songs: Int, onAvatar: () -> Unit) {
     val accent = LocalAccent.current
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
+    val greet = if (hour < 12) "GOOD MORNING" else if (hour < 18) "GOOD AFTERNOON" else "GOOD EVENING"
+    val cardShape = RoundedCornerShape(24.dp)
     Reveal(0) {
-        Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("NYXEN  /  YOUR MUSIC", fontSize = 10.sp, letterSpacing = 2.1.sp, fontWeight = FontWeight.Bold, color = accent)
-                Text(greet, Modifier.padding(top = 10.dp), fontSize = 14.sp, color = Color.White.copy(alpha = .62f))
-                Text(name.ifBlank { "Listener" }, Modifier.padding(top = 1.dp), fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.2).sp, color = Color.White, maxLines = 1)
-                Text("$songs tracks in your collection", Modifier.padding(top = 5.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .52f))
-            }
-            Box(
-                Modifier.size(54.dp).clip(CircleShape).background(accent)
-                    .border(2.dp, Color.White.copy(alpha = .22f), CircleShape).clickable(onClick = onAvatar),
-                Alignment.Center
-            ) {
-                Text((name.firstOrNull() ?: 'N').uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF101016))
-            }
-        }
-    }
-}@Composable
-fun HeroCard(t: Track, current: Boolean, playing: Boolean, onPlay: () -> Unit) {
-    val accent = LocalAccent.current
-    val shape = RoundedCornerShape(28.dp)
-    Reveal(80) {
-        Column(
-            Modifier.fillMaxWidth().padding(top = 12.dp).clip(shape)
-                .background(Brush.linearGradient(listOf(Color(0xFF282432), Color(0xFF14141B), Color(0xFF101015))))
-                .border(1.dp, Color.White.copy(alpha = .12f), shape)
-                .clickable(onClick = onPlay).padding(18.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (current && playing) "NOW PLAYING" else "MADE FOR THIS MOMENT", fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold, color = accent)
-                Spacer(Modifier.weight(1f))
-                Icon(Icons.Default.GraphicEq, null, tint = accent, modifier = Modifier.size(18.dp))
-            }
-            Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Art(t, Modifier.size(104.dp), 18.dp)
-                Spacer(Modifier.width(16.dp))
+        Column(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(t.title, fontSize = 22.sp, lineHeight = 25.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(t.artist, Modifier.padding(top = 5.dp), fontSize = 13.sp, color = Color.White.copy(alpha = .62f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(14.dp))
-                    Row(Modifier.clip(CircleShape).background(accent).padding(horizontal = 15.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, null, tint = Color(0xFF101016), modifier = Modifier.size(17.dp))
-                        Text("  PLAY NOW", fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = Color(0xFF101016))
+                    Text("NYXEN  /  YOUR MUSIC", fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Black, color = accent)
+                    Text(greet, Modifier.padding(top = 12.dp), fontSize = 11.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = .55f))
+                    Text(name.ifBlank { "Listener" }, Modifier.padding(top = 2.dp), fontSize = 32.sp, lineHeight = 36.sp,
+                        fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Box(
+                    Modifier.size(56.dp).clip(RoundedCornerShape(19.dp))
+                        .background(Brush.linearGradient(listOf(accent, accent.copy(alpha = .68f), Color(0xFF30243F))))
+                        .border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(19.dp))
+                        .clickable(onClick = onAvatar),
+                    Alignment.Center
+                ) {
+                    Text((name.firstOrNull() ?: 'N').uppercase(), fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF101016))
+                }
+            }
+            Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(shape = cardShape, color = Color(0xDD121219), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LibraryMusic, null, Modifier.size(15.dp), tint = accent)
+                        Spacer(Modifier.width(7.dp))
+                        Text("$songs TRACKS", fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .82f))
+                    }
+                }
+                Surface(shape = cardShape, color = Color(0xDD121219), border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .09f))) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(accent))
+                        Spacer(Modifier.width(7.dp))
+                        Text("ON DEVICE", fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .68f))
                     }
                 }
             }
         }
     }
-}@Composable
-fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit) {
+}
+@Composable
+fun HeroCard(t: Track, current: Boolean, playing: Boolean, onPlay: () -> Unit) {
     val accent = LocalAccent.current
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val sc by animateFloatAsState(if (pressed) 0.94f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "card")
-    Column(Modifier.width(148.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clickable(src, null, onClick = onClick)) {
-        Box {
-            Art(t, Modifier.size(148.dp).shadow(if (current) 18.dp else 8.dp, RoundedCornerShape(20.dp), ambientColor = accent, spotColor = accent))
-            if (current) Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(26.dp).clip(CircleShape).background(accent), Alignment.Center) { NowPlayingBars(playing, Modifier.size(14.dp)) }
+    val shape = RoundedCornerShape(24.dp)
+    Reveal(50) {
+        Column(
+            Modifier.fillMaxWidth().padding(top = 10.dp).clip(shape)
+                .background(Brush.linearGradient(listOf(Color(0xFF211B2B), Color(0xFF15141B), Color(0xFF111116))))
+                .border(1.dp, accent.copy(alpha = .32f), shape)
+                .clickable(onClick = onPlay).padding(15.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.clip(CircleShape).background(accent.copy(alpha = .15f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Text(if (current && playing) "NOW PLAYING" else "PICK UP YOUR SOUND", fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Black, color = accent)
+                }
+                Spacer(Modifier.weight(1f))
+                NowPlayingBars(playing && current, Modifier.size(17.dp))
+            }
+            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.shadow(16.dp, RoundedCornerShape(18.dp), ambientColor = accent.copy(alpha = .5f), spotColor = accent)) {
+                    Art(t, Modifier.size(106.dp), 18.dp)
+                }
+                Spacer(Modifier.width(15.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(t.title, fontSize = 21.sp, lineHeight = 24.sp, fontWeight = FontWeight.Black,
+                        color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(t.artist, Modifier.padding(top = 5.dp), fontSize = 13.sp, color = Color.White.copy(alpha = .68f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(13.dp))
+                    Row(
+                        Modifier.clip(CircleShape).background(accent).padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, tint = Color(0xFF101016), modifier = Modifier.size(17.dp))
+                        Text("  PLAY NOW", fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = Color(0xFF101016))
+                    }
+                }
+            }
         }
-        Text(t.title, Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(playsText(t.playCount), fontSize = 11.sp, color = accent, maxLines = 1)
     }
 }
-
+@Composable
+fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    val shape = RoundedCornerShape(20.dp)
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) .96f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "album-card")
+    Column(
+        Modifier.width(148.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(shape).background(Color(0xD8111118))
+            .border(1.dp, if (current) accent.copy(alpha = .58f) else Color.White.copy(alpha = .08f), shape)
+            .clickable(src, null, onClick = onClick)
+    ) {
+        Box {
+            Art(t, Modifier.size(148.dp), 19.dp)
+            if (current) Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(27.dp).clip(CircleShape).background(accent), Alignment.Center) {
+                NowPlayingBars(playing, Modifier.size(14.dp))
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp)) {
+            Text(t.title, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(t.artist, Modifier.padding(top = 3.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .68f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(playsText(t.playCount), Modifier.padding(top = 5.dp), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = accent, maxLines = 1)
+        }
+    }
+}
 @Composable
 fun Carousel(title: String, list: List<Track>, curId: Long?, playing: Boolean, onPlay: (Int) -> Unit) {
     Column(Modifier.padding(top = 24.dp)) {
@@ -267,46 +308,65 @@ fun Carousel(title: String, list: List<Track>, curId: Long?, playing: Boolean, o
 @Composable
 fun GroupCard(name: String, count: Int, cover: Track?, index: Int, onClick: () -> Unit) {
     val accent = LocalAccent.current
-    val a = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { delay((index % 8) * 40L); a.animateTo(1f, spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow)) }
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay((index % 6) * 24L)
+        appear.animateTo(1f, spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow))
+    }
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "grp")
-    val shape = RoundedCornerShape(26.dp)
+    val pressScale by animateFloatAsState(if (pressed) .96f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "group-press")
+    val shape = RoundedCornerShape(22.dp)
     Box(
         Modifier.fillMaxWidth().aspectRatio(1f).graphicsLayer {
-            val v = a.value; alpha = v; translationY = (1f - v) * 60f; scaleX = (0.9f + 0.1f * v) * sc; scaleY = (0.9f + 0.1f * v) * sc
-        }.shadow(8.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).clickable(src, null, onClick = onClick)
+            val value = appear.value
+            alpha = value
+            translationY = (1f - value) * 32f
+            scaleX = (.96f + .04f * value) * pressScale
+            scaleY = (.96f + .04f * value) * pressScale
+        }.clip(shape).background(Color(0xD9111118))
+            .border(1.dp, Color.White.copy(alpha = .10f), shape)
+            .clickable(src, null, onClick = onClick)
     ) {
         Art(cover, Modifier.fillMaxSize(), 0.dp)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .04f), Color.Black.copy(alpha = .16f), Color.Black.copy(alpha = .88f)), startY = 80f)))
-        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+            listOf(Color.Black.copy(alpha = .06f), Color.Black.copy(alpha = .16f), Color.Black.copy(alpha = .88f))
+        )))
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(11.dp)) {
             Text(name, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$count TRACKS", fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = .78f))
+            Text("$count TRACKS", Modifier.padding(top = 3.dp), fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
-
 @Composable
 fun EmptyState(title: String, subtitle: String, action: String? = null, onAction: () -> Unit = {}) {
     val accent = LocalAccent.current
+    val shape = RoundedCornerShape(22.dp)
     Reveal(0) {
-        Column(Modifier.fillMaxWidth().padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(118.dp).shadow(28.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .2f), lerp(accent, Color.Black, .55f)))), Alignment.Center) {
-                Icon(Icons.Default.LibraryMusic, null, Modifier.size(48.dp), tint = Color.White)
+        Column(
+            Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 18.dp)
+                .clip(shape).background(Color(0xE8121219))
+                .border(1.dp, Color.White.copy(alpha = .09f), shape)
+                .padding(horizontal = 22.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(Modifier.size(60.dp).clip(RoundedCornerShape(18.dp))
+                .background(accent.copy(alpha = .14f)), Alignment.Center) {
+                Icon(Icons.Default.LibraryMusic, null, Modifier.size(28.dp), tint = accent)
             }
-            Text(title, Modifier.padding(top = 22.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-            Text(subtitle, Modifier.padding(top = 8.dp), color = Color.White.copy(alpha = .72f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+            Text(title, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+            Text(subtitle, Modifier.padding(top = 7.dp), color = Color.White.copy(alpha = .65f),
+                textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
             if (action != null) {
                 Spacer(Modifier.height(18.dp))
-                EmbossedIconButton(onAction, Modifier.height(48.dp), RoundedCornerShape(24.dp)) { Text(action, Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold) }
+                EmbossedIconButton(onAction, Modifier.height(46.dp), RoundedCornerShape(24.dp)) {
+                    Text(action, Modifier.padding(horizontal = 22.dp), fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
-
-/** 2x2 cover collage used as playlist artwork. Empty slots show the fallback tile. */
 @Composable
 fun PlaylistCollage(pts: List<Track>, size: Dp, corner: Dp = 14.dp) {
     Column(Modifier.size(size).clip(RoundedCornerShape(corner))) {
@@ -327,12 +387,12 @@ fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onD
     val ideas = listOf("Road trip", "Workout", "Chill", "Focus", "Party", "Late night", "Throwbacks", "Study", "Sunday mood")
     val float = rememberInfiniteTransition(label = "float")
     val bob by float.animateFloat(-6f, 6f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "bob")
-    val cover = RoundedCornerShape(32.dp)
+    val cover = RoundedCornerShape(24.dp)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         var shown by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { shown = true; delay(350); runCatching { focus.requestFocus() } }
         AnimatedVisibility(shown, enter = fadeIn(tween(250)) + slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)) { it / 6 }) {
-            Box(Modifier.fillMaxSize().background(Color(0xFF050505)).systemBarsPadding().imePadding()) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF09090E)).systemBarsPadding().imePadding()) {
                 AuroraGlow(accent, Modifier.fillMaxSize())
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -342,14 +402,27 @@ fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onD
                     }
                     Spacer(Modifier.height(28.dp))
                     Box(
-                        Modifier.size(220.dp).graphicsLayer { translationY = bob; rotationZ = -2f }
-                            .shadow(28.dp, cover, ambientColor = accent, spotColor = accent).clip(cover)
-                            .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .65f))))
-                            .border(1.dp, Color.White.copy(alpha = .25f), cover),
+                        Modifier.size(220.dp).graphicsLayer { translationY = bob; rotationZ = -1.5f }
+                            .shadow(24.dp, cover, ambientColor = accent.copy(alpha = .55f), spotColor = accent)
+                            .clip(cover).background(Color(0xFF111118))
+                            .border(1.dp, accent.copy(alpha = .38f), cover),
                         Alignment.BottomStart
                     ) {
-                        Icon(Icons.Default.QueueMusic, null, Modifier.align(Alignment.TopEnd).padding(16.dp).size(36.dp), tint = Color.White.copy(alpha = .85f))
-                        Text(name.ifBlank { "Your playlist" }, Modifier.padding(18.dp), fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Column(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF09090D))) {
+                            Row(Modifier.weight(1f)) {
+                                Box(Modifier.weight(1f).fillMaxHeight().background(Brush.linearGradient(listOf(accent.copy(alpha = .42f), Color(0xFF211A2A)))))
+                                Box(Modifier.weight(1f).fillMaxHeight().background(Brush.linearGradient(listOf(Color(0xFF201D28), accent.copy(alpha = .18f)))))
+                            }
+                            Row(Modifier.weight(1f)) {
+                                Box(Modifier.weight(1f).fillMaxHeight().background(Brush.linearGradient(listOf(Color(0xFF1B1922), accent.copy(alpha = .25f)))))
+                                Box(Modifier.weight(1f).fillMaxHeight().background(Brush.linearGradient(listOf(accent.copy(alpha = .28f), Color(0xFF101015)))))
+                            }
+                        }
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .74f)))))
+                        Icon(Icons.Default.QueueMusic, null, Modifier.align(Alignment.TopEnd).padding(15.dp).size(30.dp), tint = Color.White.copy(alpha = .88f))
+                        Text(name.ifBlank { "Your playlist" }, Modifier.align(Alignment.BottomStart).padding(18.dp),
+                            fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Black, color = Color.White,
+                            maxLines = 3, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.height(28.dp))
                     OutlinedTextField(
@@ -399,35 +472,38 @@ fun NyxenTypography(customFont: FontFamily? = null): Typography {
 /** Large page title with a quiet subtitle. */
 @Composable
 fun PageHeader(title: String, subtitle: String, modifier: Modifier = Modifier, trailing: @Composable () -> Unit = {}) {
+    val accent = LocalAccent.current
     Reveal(0) {
         Row(modifier.fillMaxWidth().padding(top = 18.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.padding(end = 12.dp).width(4.dp).height(42.dp).clip(CircleShape).background(accent))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.headlineLarge, color = Color.White, letterSpacing = (-.8).sp)
-                Text(subtitle, fontSize = 12.sp, letterSpacing = .2.sp, color = Color.White.copy(alpha = .62f))
+                Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White,
+                    fontWeight = FontWeight.Black, letterSpacing = (-.7).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, Modifier.padding(top = 2.dp), fontSize = 12.sp, letterSpacing = .15.sp,
+                    color = Color.White.copy(alpha = .62f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             trailing()
         }
     }
 }
-
-/** Compact shortcut tile: accent icon block plus a label. Springs down when pressed. */
 @Composable
 fun QuickTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val accent = LocalAccent.current
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) .96f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "quick-tile")
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) .97f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "quick-tile")
     val shape = RoundedCornerShape(20.dp)
     Column(
-        modifier.height(104.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(shape).background(Color(0xD91B1B23))
+        modifier.height(100.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(shape).background(Color(0xD815151D))
             .border(1.dp, Color.White.copy(alpha = .09f), shape)
-            .clickable(src, null, onClick = onClick).padding(14.dp),
+            .clickable(source, null, onClick = onClick).padding(13.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(accent), Alignment.Center) {
+        Box(Modifier.size(35.dp).clip(RoundedCornerShape(12.dp))
+            .background(Brush.linearGradient(listOf(accent, accent.copy(alpha = .72f)))), Alignment.Center) {
             Icon(icon, null, tint = Color(0xFF101016), modifier = Modifier.size(19.dp))
         }
-        Text(label, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

@@ -493,7 +493,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         val isCur = t.id == curIdL
         val shape = RoundedCornerShape(20.dp)
         val isSel = t.id in selected
-        val bg by animateColorAsState(if (isSel) accent.copy(alpha = .4f) else if (isCur) accent.copy(alpha = .22f) else Color(0xD91A1A22), tween(300), label = "rowbg")
+        val bg by animateColorAsState(if (isSel) accent.copy(alpha = .4f) else if (isCur) accent.copy(alpha = .22f) else Color(0xE8111118), tween(300), label = "rowbg")
         val src = remember { MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
         val sc by animateFloatAsState(if (pressed) 0.97f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "rowpress")
@@ -548,7 +548,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                 else -> com.mono.player.R.drawable.nyxen_wallpaper_08
             }
             Image(painterResource(wallpaper), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)))
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.62f)))
         }
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
         Scaffold(containerColor = Color.Transparent, bottomBar = {
@@ -615,7 +615,11 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                     1 -> {
                         BackHandler(openGroup != null) { openGroup = null }
                         PageHeader("Library", remember(tracks) { "${tracks.size} songs · ${tracks.distinctBy { it.album }.size} albums" })
-                        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp)
+                            .clip(RoundedCornerShape(20.dp)).background(Color(0xE8111118))
+                            .border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp))
+                            .horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             EmbossedIconButton({ picker.launch(arrayOf("audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a")) }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import", Modifier.padding(horizontal = 18.dp)) }
                             var sm by remember { mutableStateOf(false) }
                             Box {
@@ -743,9 +747,17 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                                         IconButton({ if (list.isNotEmpty()) play(list, 0) else msg = "Nothing here yet" }) { Icon(Icons.Default.PlayArrow, "Play $name") }
                                     }
                                 }
-                                Row(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Playlists", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                                    EmbossedIconButton({ newPl = true }, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("New", Modifier.padding(horizontal = 18.dp)) }
+                                Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.padding(end = 12.dp).width(4.dp).height(38.dp).clip(CircleShape).background(accent))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Playlists", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
+                                        Text("YOUR MIXES  ·  ${playlists.size} SAVED", fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .56f))
+                                    }
+                                    EmbossedIconButton({ newPl = true }, Modifier.height(42.dp), RoundedCornerShape(22.dp)) {
+                                        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Add, null, Modifier.size(17.dp)); Spacer(Modifier.width(4.dp)); Text("New", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                                     smartMap.forEach { (id, v) -> item(key = "smart$id") { SmartRow(id, v.first, v.second, smartIcon(id)) } }
@@ -753,7 +765,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                                     items(playlists, key = { it.id }) { p ->
                                         val pts by dao.playlistTracksFlow(p.id).collectAsState(emptyList())
                                         Row(
-                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color.Black.copy(alpha = .3f))
+                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color(0xE8121219))
                                                 .border(1.dp, Color.White.copy(alpha = .1f), shape).clickable { openPlId = p.id }.padding(10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -804,7 +816,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                                     items(pts.size, key = { pts[it].id }) { i ->
                                         val t = pts[i]
                                         Row(
-                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = .28f))
+                                            Modifier.animateItem().fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xE8111118))
                                                 .border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp)).clickable { play(pts, i) }.padding(10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {

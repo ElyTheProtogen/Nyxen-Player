@@ -113,15 +113,16 @@ fun AuroraGlow(accent: Color, modifier: Modifier = Modifier, animate: Boolean = 
 /** Dark translucent card with a thin accent-lit border. */
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val a = LocalAccent.current
-    val shape = RoundedCornerShape(24.dp)
+    val accent = LocalAccent.current
+    val shape = RoundedCornerShape(22.dp)
     Column(
-        modifier.clip(shape).background(Color.Black.copy(alpha = .42f))
-            .border(1.dp, Brush.linearGradient(listOf(a.copy(alpha = .7f), Color.White.copy(alpha = .08f))), shape).padding(16.dp),
+        modifier.clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xE817171F), Color(0xF0101016))))
+            .border(1.dp, Brush.linearGradient(listOf(accent.copy(alpha = .38f), Color.White.copy(alpha = .08f))), shape)
+            .padding(16.dp),
         content = content
     )
 }
-
 /** Fades and slides its content in after [delayMs]; use increasing delays to stagger a screen. */
 @Composable
 fun Reveal(delayMs: Int = 0, content: @Composable () -> Unit) {
