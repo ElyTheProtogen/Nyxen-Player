@@ -379,13 +379,20 @@ fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onD
 }
 
 /** Bolder, tighter headings used across the whole app. */
-fun NyxenTypography(customFont: FontFamily? = null): Typography = Typography(defaultFontFamily = customFont ?: FontFamily.Default).let { b ->
-    b.copy(
-        headlineLarge = b.headlineLarge.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-        headlineMedium = b.headlineMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-        headlineSmall = b.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-        titleLarge = b.titleLarge.copy(fontWeight = FontWeight.Bold),
-        titleMedium = b.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+fun NyxenTypography(customFont: FontFamily? = null): Typography {
+    val b = Typography()
+    val font = customFont ?: FontFamily.Default
+    fun styled(style: androidx.compose.ui.text.TextStyle) = style.copy(fontFamily = font)
+    return b.copy(
+        displayLarge = styled(b.displayLarge), displayMedium = styled(b.displayMedium), displaySmall = styled(b.displaySmall),
+        headlineLarge = styled(b.headlineLarge).copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineMedium = styled(b.headlineMedium).copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineSmall = styled(b.headlineSmall).copy(fontWeight = FontWeight.ExtraBold),
+        titleLarge = styled(b.titleLarge).copy(fontWeight = FontWeight.Bold),
+        titleMedium = styled(b.titleMedium).copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = styled(b.titleSmall),
+        bodyLarge = styled(b.bodyLarge), bodyMedium = styled(b.bodyMedium), bodySmall = styled(b.bodySmall),
+        labelLarge = styled(b.labelLarge), labelMedium = styled(b.labelMedium), labelSmall = styled(b.labelSmall)
     )
 }
 
