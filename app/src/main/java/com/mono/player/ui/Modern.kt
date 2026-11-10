@@ -117,7 +117,7 @@ fun FloatingNav(selected: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(32.dp)
     Row(
         Modifier.fillMaxWidth().shadow(14.dp, shape, ambientColor = accent, spotColor = accent).clip(shape)
-            .background(Color.Black.copy(alpha = .62f)).border(1.dp, glassBorder(accent), shape).padding(6.dp),
+            .background(Brush.verticalGradient(listOf(Color(0xEE1A1A22), Color(0xF9060609)))).border(1.dp, glassBorder(accent), shape).padding(7.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEachIndexed { i, (name, icon) ->
@@ -126,14 +126,14 @@ fun FloatingNav(selected: Int, onSelect: (Int) -> Unit) {
             val on by animateFloatAsState(if (sel) 1f else 0f, tween(250), label = "navon")
             val pop by animateFloatAsState(if (sel) 1.15f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "navpop")
             Row(
-                Modifier.weight(wt).height(48.dp).clip(CircleShape)
+                Modifier.weight(wt).height(50.dp).clip(CircleShape).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
                     .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .35f))), alpha = on)
                     .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSelect(i) },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(icon, name, Modifier.size(24.dp).graphicsLayer { scaleX = pop; scaleY = pop }, tint = Color.White)
+                Icon(icon, name, Modifier.size(22.dp).graphicsLayer { scaleX = pop; scaleY = pop; rotationZ = if (sel) 0f else -4f }, tint = Color.White)
                 AnimatedVisibility(sel, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                    Text(name, Modifier.padding(start = 6.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                    Text(name, Modifier.padding(start = 6.dp), fontSize = 12.sp, letterSpacing = 0.2.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                 }
             }
         }
@@ -153,9 +153,9 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
         val shape = RoundedCornerShape(24.dp)
         Column {
             Row(
-                Modifier.fillMaxWidth().shadow(10.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).background(Color.Black.copy(alpha = .6f))
+                Modifier.fillMaxWidth().shadow(10.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).background(Brush.linearGradient(listOf(Color(0xE822202B), Color(0xE908080C))))
                     .border(1.dp, glassBorder(accent), shape).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).clickable(onClick = onOpen)
-                    .drawBehind { val h = 3.dp.toPx(); drawRect(accent, Offset(0f, size.height - h), Size(size.width * progress(), h)) }
+                    .drawBehind { val h = 3.dp.toPx(); drawRect(Color.White.copy(alpha = .12f), Offset(0f, size.height - h), Size(size.width, h)); drawRoundRect(Brush.horizontalGradient(listOf(accent.copy(alpha = .35f), accent, Color.White.copy(alpha = .8f))), Offset(0f, size.height - h), Size(size.width * progress().coerceIn(0f, 1f), h), CornerRadius(h / 2)) }
                     .pointerInput(Unit) {
                         var total = 0f
                         detectHorizontalDragGestures(onDragStart = { total = 0f }, onDragEnd = { if (total < -90f) onNext() else if (total > 90f) onPrev() }) { _, d -> total += d }
@@ -164,7 +164,7 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
             ) {
                 Crossfade(t.id, label = "mini-player-art") { Art(t, Modifier.size(46.dp)) }; Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(t.title, fontWeight = FontWeight.Bold, letterSpacing = .1.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 NowPlayingBars(playing, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp))
@@ -183,16 +183,16 @@ fun HomeHeader(name: String, songs: Int, onAvatar: () -> Unit) {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greet = if (h < 12) "Good morning" else if (h < 18) "Good afternoon" else "Good evening"
     Reveal(0) {
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(greet, color = Color.White.copy(alpha = .75f))
-                Text(name.ifBlank { "Listener" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                Text("YOUR SOUND. YOUR SPACE.", fontSize = 9.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Bold, color = accent)\n                Text(greet, Modifier.padding(top = 5.dp), fontSize = 13.sp, color = Color.White.copy(alpha = .62f))
+                Text(name.ifBlank { "Listener" }, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(accent))
-                    Text("$songs tracks in your collection", fontSize = 12.sp, color = Color.White.copy(alpha = .68f))
+                    Text("$songs TRACKS  ·  YOUR COLLECTION", fontSize = 10.sp, letterSpacing = .7.sp, color = Color.White.copy(alpha = .68f))
                 }
             }
-            Box(Modifier.size(58.dp).shadow(16.dp, CircleShape, ambientColor = accent, spotColor = accent)
+            Box(Modifier.size(62.dp).shadow(18.dp, CircleShape, ambientColor = accent, spotColor = accent)
                 .border(1.dp, Color.White.copy(alpha = .28f), CircleShape).clip(CircleShape)
                 .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .24f), lerp(accent, Color.Black, .55f))))
                 .clickable(onClick = onAvatar), Alignment.Center) {
@@ -209,17 +209,17 @@ fun HeroCard(t: Track, current: Boolean, playing: Boolean, onPlay: () -> Unit) {
     Reveal(80) {
         Row(
             Modifier.fillMaxWidth().padding(top = 18.dp).clip(shape)
-                .background(Brush.linearGradient(listOf(accent.copy(alpha = .55f), Color.Black.copy(alpha = .45f)))).border(1.dp, accent.copy(alpha = .6f), shape)
-                .clickable(onClick = onPlay).padding(14.dp),
+                .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .12f).copy(alpha = .68f), Color(0xE60A0A10), Color(0xE60A0A10)))).border(1.dp, accent.copy(alpha = .75f), shape)
+                .clickable(onClick = onPlay).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Art(t, Modifier.size(104.dp).shadow(16.dp, RoundedCornerShape(16.dp), ambientColor = accent, spotColor = accent)); Spacer(Modifier.width(16.dp))
+            Art(t, Modifier.size(112.dp).shadow(18.dp, RoundedCornerShape(20.dp), ambientColor = accent, spotColor = accent)); Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(if (current && playing) Color(0xFF69E58B) else accent))
-                    Text(if (current && playing) "NOW PLAYING" else "PICK UP WHERE YOU LEFT OFF", fontSize = 9.sp, letterSpacing = 1.5.sp, color = Color.White.copy(alpha = .82f), maxLines = 1)
+                    Text(if (current && playing) "NOW PLAYING" else "PICK UP WHERE YOU LEFT OFF", fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .82f), maxLines = 1)
                 }
-                Text(t.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(t.title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(t.artist, color = Color.White.copy(alpha = .75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))
                 EmbossedIconButton(onPlay, Modifier.height(40.dp), RoundedCornerShape(20.dp)) {
@@ -238,12 +238,12 @@ fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit)
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.94f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "card")
-    Column(Modifier.width(140.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clickable(src, null, onClick = onClick)) {
+    Column(Modifier.width(148.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clickable(src, null, onClick = onClick)) {
         Box {
-            Art(t, Modifier.size(140.dp).shadow(if (current) 14.dp else 6.dp, RoundedCornerShape(16.dp), ambientColor = accent, spotColor = accent))
+            Art(t, Modifier.size(148.dp).shadow(if (current) 18.dp else 8.dp, RoundedCornerShape(20.dp), ambientColor = accent, spotColor = accent))
             if (current) Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).size(26.dp).clip(CircleShape).background(accent), Alignment.Center) { NowPlayingBars(playing, Modifier.size(14.dp)) }
         }
-        Text(t.title, Modifier.padding(top = 8.dp), fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(t.title, Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(playsText(t.playCount), fontSize = 11.sp, color = accent, maxLines = 1)
     }
@@ -251,9 +251,7 @@ fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit)
 
 @Composable
 fun Carousel(title: String, list: List<Track>, curId: Long?, playing: Boolean, onPlay: (Int) -> Unit) {
-    Column(Modifier.padding(top = 20.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(bottom = 10.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.padding(top = 24.dp)) {\n        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {\n            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)\n            Text("${list.size} TRACKS", fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)\n        }\n        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(list.size, key = { list[it].id }) { i -> AlbumCard(list[i], list[i].id == curId, playing) { onPlay(i) } }
         }
     }
@@ -268,17 +266,16 @@ fun GroupCard(name: String, count: Int, cover: Track?, index: Int, onClick: () -
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "grp")
-    val shape = RoundedCornerShape(22.dp)
-    Box(
+    val shape = RoundedCornerShape(26.dp)\n    Box(
         Modifier.fillMaxWidth().aspectRatio(1f).graphicsLayer {
             val v = a.value; alpha = v; translationY = (1f - v) * 60f; scaleX = (0.9f + 0.1f * v) * sc; scaleY = (0.9f + 0.1f * v) * sc
         }.shadow(8.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).clickable(src, null, onClick = onClick)
     ) {
         Art(cover, Modifier.fillMaxSize(), 0.dp)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .8f)), startY = 120f)))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .04f), Color.Black.copy(alpha = .16f), Color.Black.copy(alpha = .88f)), startY = 80f)))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text(name, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$count songs", fontSize = 12.sp, color = Color.White.copy(alpha = .75f))
+            Text(name, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("$count TRACKS", fontSize = 9.sp, letterSpacing = 1.1.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = .78f))
         }
     }
 }
@@ -288,12 +285,12 @@ fun EmptyState(title: String, subtitle: String, action: String? = null, onAction
     val accent = LocalAccent.current
     Reveal(0) {
         Column(Modifier.fillMaxWidth().padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(110.dp).shadow(24.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
+            Box(Modifier.size(118.dp).shadow(28.dp, CircleShape, ambientColor = accent, spotColor = accent).clip(CircleShape)
                 .background(Brush.linearGradient(listOf(lerp(accent, Color.White, .2f), lerp(accent, Color.Black, .55f)))), Alignment.Center) {
                 Icon(Icons.Default.LibraryMusic, null, Modifier.size(48.dp), tint = Color.White)
             }
-            Text(title, Modifier.padding(top = 20.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            Text(subtitle, Modifier.padding(top = 6.dp), color = Color.White.copy(alpha = .7f))
+            Text(title, Modifier.padding(top = 22.dp), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(subtitle, Modifier.padding(top = 8.dp), color = Color.White.copy(alpha = .72f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
             if (action != null) {
                 Spacer(Modifier.height(18.dp))
                 EmbossedIconButton(onAction, Modifier.height(48.dp), RoundedCornerShape(24.dp)) { Text(action, Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold) }
@@ -384,10 +381,10 @@ val NyxenTypography = Typography().let { b ->
 @Composable
 fun PageHeader(title: String, subtitle: String, modifier: Modifier = Modifier, trailing: @Composable () -> Unit = {}) {
     Reveal(0) {
-        Row(modifier.fillMaxWidth().padding(top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier.fillMaxWidth().padding(top = 18.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                Text(subtitle, fontSize = 13.sp, color = Color.White.copy(alpha = .65f))
+                Text(title, style = MaterialTheme.typography.headlineLarge, color = Color.White, letterSpacing = (-.8).sp)
+                Text(subtitle, fontSize = 12.sp, letterSpacing = .2.sp, color = Color.White.copy(alpha = .62f))
             }
             trailing()
         }
@@ -403,11 +400,10 @@ fun QuickTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, o
     val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "qt")
     val shape = RoundedCornerShape(18.dp)
     Row(
-        modifier.height(56.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Color.Black.copy(alpha = .38f))
-            .border(1.dp, Color.White.copy(alpha = .12f), shape).clickable(src, null, onClick = onClick),
+        modifier.height(60.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Brush.horizontalGradient(listOf(Color(0xC51A1920), Color(0xA808080B))))\n            .border(1.dp, Color.White.copy(alpha = .14f), shape).clickable(src, null, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(56.dp).background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
+        Box(Modifier.size(60.dp).background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
             Icon(icon, null, tint = Color.White)
         }
         Text(label, Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
