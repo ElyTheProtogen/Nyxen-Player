@@ -445,6 +445,16 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     val g1 by animateColorAsState(th.mid, tween(700), label = "g1")
     val g2 by animateColorAsState(th.bottom, tween(700), label = "g2")
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(g0, g1, g2))).background(Color.Black.copy(alpha = th.scrim))) {
+        if (wallpaperIdx > 0) {
+            val wallpaper = when (wallpaperIdx) {
+                1 -> com.mono.player.R.drawable.nyxen_wallpaper_01
+                2 -> com.mono.player.R.drawable.nyxen_wallpaper_02
+                3 -> com.mono.player.R.drawable.nyxen_wallpaper_03
+                else -> com.mono.player.R.drawable.nyxen_wallpaper_04
+            }
+            Image(painterResource(wallpaper), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)))
+        }
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
         Scaffold(containerColor = Color.Transparent, bottomBar = {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 12.dp).padding(bottom = 8.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
