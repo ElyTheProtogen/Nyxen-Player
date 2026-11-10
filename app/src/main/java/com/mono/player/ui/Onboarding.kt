@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import com.mono.player.GoogleAuth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -110,6 +111,7 @@ fun WelcomeScreen(
     var busy by remember { mutableStateOf(false) }
     var gError by remember { mutableStateOf<String?>(null) }
     val ok = isGmail(email)
+    BackHandler(enabled = busy) { /* Keep the authentication flow stable until Google returns. */ }
     val breathe = rememberInfiniteTransition(label = "breathe")
     val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0E0E0E), Color(0xFF000000))))) {
@@ -142,10 +144,18 @@ fun WelcomeScreen(
                                 Box(
                                     Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
                                         scope.launch {
-                                            busy = true; gError = null
-                                            onGoogle().onSuccess { (n, e) -> if (isGmail(e)) onDone(n.ifBlank { "Friend" }, e, true) else gError = "Please choose a @gmail.com account." }
-                                                .onFailure { gError = GoogleAuth.describe(it) }
-                                            busy = false
+                                            busy = true
+                                            gError = null
+                                            try {
+                                                onGoogle().onSuccess { (n, e) ->
+                                                    if (isGmail(e)) onDone(n.ifBlank { "Friend" }, e, true)
+                                                    else gError = "Please choose a @gmail.com account."
+                                                }.onFailure { gError = GoogleAuth.describe(it) }
+                                            } catch (e: Exception) {
+                                                gError = GoogleAuth.describe(e)
+                                            } finally {
+                                                busy = false
+                                            }
                                         }
                                     },
                                     Alignment.Center
@@ -156,7 +166,19 @@ fun WelcomeScreen(
                                         Text("Continue with Google", color = Color.Black, fontWeight = FontWeight.Bold)
                                     }
                                 }
-                                gError?.let { Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp)) }
+                                gError?.let {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp))
+                                            .background(Color(0xFF3A171D).copy(alpha = .72f))
+                                            .border(1.dp, Color(0xFFFF6B6B).copy(alpha = .35f), RoundedCornerShape(18.dp))
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Email, null, tint = Color(0xFFFF8585))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(it, color = Color(0xFFFFDADA), fontSize = 12.sp, textAlign = TextAlign.Start)
+                                    }
+                                }
                                 Text("Google is only used to confirm your Gmail address. Nothing is uploaded.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                             } else {
                                 Text("A Gmail address is required", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
@@ -187,6 +209,70 @@ fun WelcomeScreen(
                     Modifier.height(52.dp).widthIn(min = 140.dp).graphicsLayer { alpha = if (pager.currentPage < 2 || ok) 1f else 0.55f }, RoundedCornerShape(26.dp)
                 ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
             }
+        }
+        if (busy) {
+            GoogleSignInLoading()
+        }
+    }
+}
+
+@Composable
+private fun GoogleSignInLoading() {
+    val accent = LocalAccent.current
+    val motion = rememberInfiniteTransition(label = "google-auth-loading")
+    val pulse by motion.animateFloat(
+        initialValue = .94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "google-auth-pulse"
+    )
+    val sweep by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
+        label = "google-auth-sweep"
+    )
+    Box(
+        Modifier.fillMaxSize().background(Color(0xF509090D)),
+        contentAlignment = Alignment.Center
+    ) {
+        AuroraGlow(accent, Modifier.fillMaxSize())
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 32.dp).clip(RoundedCornerShape(32.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF24202E), Color(0xFF111116))))
+                .border(1.dp, accent.copy(alpha = .42f), RoundedCornerShape(32.dp)).padding(30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { sweep },
+                    Modifier.fillMaxSize(),
+                    color = accent,
+                    trackColor = Color.White.copy(alpha = .10f),
+                    strokeWidth = 3.dp
+                )
+                Box(
+                    Modifier.size(76.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
+                        .clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("G", color = Color(0xFF4285F4), fontSize = 42.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("Connecting to Google", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Waiting for Google Play services to verify your account…",
+                color = Color.White.copy(alpha = .72f), textAlign = TextAlign.Center, fontSize = 13.sp
+            )
+            Spacer(Modifier.height(20.dp))
+            LinearProgressIndicator(
+                Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                color = accent, trackColor = Color.White.copy(alpha = .12f)
+            )
+            Spacer(Modifier.height(14.dp))
+            Text("Please keep Nyxen Player open", color = Color.White.copy(alpha = .48f), fontSize = 11.sp)
         }
     }
 }
