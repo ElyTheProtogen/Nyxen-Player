@@ -96,7 +96,7 @@ private fun FeatureCard(icon: ImageVector, title: String, text: String) {
     }
 }
 
-/** Three-step welcome: hello, what the app does, then a profile with a required Gmail address (stored only on this device). */
+/** Three-step welcome: hello, what the app does, then an optional profile. Google sign-in is optional; guests can continue without an account. */
 @Composable
 fun WelcomeScreen(
     initialName: String, initialEmail: String, googleEnabled: Boolean,
@@ -179,9 +179,9 @@ fun WelcomeScreen(
                                         Text(it, color = Color(0xFFFFDADA), fontSize = 12.sp, textAlign = TextAlign.Start)
                                     }
                                 }
-                                Text("Google is only used to confirm your Gmail address. Nothing is uploaded.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+                                Text("You can skip sign-in and use Nyxen Player locally.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                             } else {
-                                Text("A Gmail address is required", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+                                Text("Add a profile (optional)", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
                                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
                                 Spacer(Modifier.height(10.dp))
                                 OutlinedTextField(
@@ -191,7 +191,13 @@ fun WelcomeScreen(
                                     isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
                                 )
-                                Text("Google sign-in is not set up in this build, so this address is only checked for format.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                                Text("No account is required. Your music library stays on this device.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                            }
+                            TextButton(
+                                onClick = { onDone("Guest", "", false) },
+                                modifier = Modifier.padding(top = 10.dp)
+                            ) {
+                                Text("Continue as guest", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }

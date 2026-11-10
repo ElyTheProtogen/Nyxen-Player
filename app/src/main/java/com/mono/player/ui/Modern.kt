@@ -154,7 +154,7 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
         Column {
             Row(
                 Modifier.fillMaxWidth().shadow(10.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).background(Color.Black.copy(alpha = .6f))
-                    .border(1.dp, glassBorder(accent), shape).clickable(onClick = onOpen)
+                    .border(1.dp, glassBorder(accent), shape).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).clickable(onClick = onOpen)
                     .drawBehind { val h = 3.dp.toPx(); drawRect(accent, Offset(0f, size.height - h), Size(size.width * progress(), h)) }
                     .pointerInput(Unit) {
                         var total = 0f
@@ -162,7 +162,7 @@ fun MiniPlayer(track: Track?, playing: Boolean, progress: () -> Float, onOpen: (
                     }.padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Art(t, Modifier.size(46.dp)); Spacer(Modifier.width(12.dp))
+                Crossfade(t.id, label = "mini-player-art") { Art(t, Modifier.size(46.dp)) }; Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(t.artist, fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
