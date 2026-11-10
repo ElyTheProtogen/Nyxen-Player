@@ -183,8 +183,19 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
         val hit = ArtCache.lru.get(id)
         if (hit != null) { value = hit; return@produceState }
         value = null
-        value = withContext(Dispatchers.Default) {
-            runCatching { dao.artwork(id)?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() } }.getOrNull()
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val bytes = dao.artwork(id) ?: return@runCatching null
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (bounds.outWidth / sample > 512 || bounds.outHeight / sample > 512) sample *= 2
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+            }.getOrNull()
         }?.also { ArtCache.lru.put(id, it) }
     }
     Box(mod.clip(RoundedCornerShape(corner)).background(Color.White.copy(.12f)), Alignment.Center) {
@@ -229,7 +240,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
     var profEmail by remember { mutableStateOf(prefs.getString("pemail", "") ?: "") }
     var profVerified by remember { mutableStateOf(prefs.getBoolean("pverified", false)) }
-    val signedIn = profName.isNotBlank() && isGmail(profEmail) && (!GoogleAuth.configured || profVerified)
+    var guestMode by remember { mutableStateOf(prefs.getBoolean("guestMode", false)) }
+    val signedIn = guestMode || (profName.isNotBlank() && isGmail(profEmail) && (!GoogleAuth.configured || profVerified))
     var booted by remember { mutableStateOf(false) }
     var greeted by remember { mutableStateOf(false) }
     var started by remember { mutableStateOf(false) }
@@ -260,7 +272,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
-        profName = ""; profEmail = ""; profVerified = false; sub = 0; restored = false; curId = null; greeted = false; started = false
+        profName = ""; profEmail = ""; profVerified = false; guestMode = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
     LaunchedEffect(Unit) {
@@ -735,6 +747,13 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                 onQueue = { showQueue = true },
                 onStudio = { full = false; sub = 2; scope.launch { pager.animateScrollToPage(4) } },
                 onAddToPlaylist = { addFor = t },
+                onSpotify = {
+                    val query = Uri.encode("${t.title} ${t.artist}")
+                    runCatching {
+                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            Uri.parse("https://open.spotify.com/search/$query")))
+                    }.onFailure { msg = "Couldn't open Spotify on this device" }
+                },
                 sleepActive = sleepEnd > 0,
                 onSleep = {
                     val nxt = if (sleepEnd == 0L) 15 else when (sleepMin) { 15 -> 30; 30 -> 60; else -> 0 }
@@ -747,7 +766,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         Banner(msg, Modifier.align(Alignment.TopCenter))
         AnimatedVisibility(booted && !signedIn, enter = fadeIn(), exit = fadeOut(tween(500))) {
             WelcomeScreen(profName, profEmail, GoogleAuth.configured, { GoogleAuth.signIn(ctx.findActivity()) }) { n, e, v ->
-                profName = n; profEmail = e; profVerified = v; prefs.edit().putString("pname", n).putString("pemail", e).putBoolean("pverified", v).apply()
+                profName = n; profEmail = e; profVerified = v; guestMode = n == "Guest" && e.isBlank()
+                prefs.edit().putString("pname", n).putString("pemail", e).putBoolean("pverified", v).putBoolean("guestMode", guestMode).apply()
             }
         }
         AnimatedVisibility(!booted, exit = fadeOut(tween(600))) { SplashScreen() }
