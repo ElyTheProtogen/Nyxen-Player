@@ -37,6 +37,7 @@ import kotlinx.coroutines.delay
 
 val LocalAccent = compositionLocalOf { Color(0xFFB14BFF) }
 val LocalHaptics = compositionLocalOf { true }
+val LocalButtonSounds = compositionLocalOf { false }
 
 /** Raised button tinted with the current theme accent. Sinks in when pressed, springs back, optional haptic tick. */
 @Composable
@@ -47,6 +48,8 @@ fun EmbossedIconButton(onClick: () -> Unit, modifier: Modifier = Modifier.size(4
     val lift by animateFloatAsState(if (pressed) 1f else 10f, tween(120), label = "lift")
     val haptic = LocalHapticFeedback.current
     val hapticsOn = LocalHaptics.current
+    val soundsOn = LocalButtonSounds.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val a = LocalAccent.current
     val face = Brush.linearGradient(
         if (pressed) listOf(lerp(a, Color.Black, .75f), lerp(a, Color.Black, .45f)) else listOf(lerp(a, Color.White, .18f), lerp(a, Color.Black, .62f))
@@ -55,7 +58,7 @@ fun EmbossedIconButton(onClick: () -> Unit, modifier: Modifier = Modifier.size(4
     Box(
         modifier.graphicsLayer { scaleX = s; scaleY = s }.shadow(lift.dp, shape, ambientColor = a, spotColor = a)
             .clip(shape).background(face).border(1.5.dp, rim, shape)
-            .clickable(src, null) { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
+            .clickable(src, null) { if (soundsOn) view.playSoundEffect(android.view.SoundEffectConstants.CLICK); if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
         Alignment.Center
     ) { CompositionLocalProvider(LocalContentColor provides Color.White) { content() } }
 }

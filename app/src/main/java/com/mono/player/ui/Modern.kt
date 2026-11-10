@@ -30,6 +30,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -319,7 +320,7 @@ fun playsText(n: Int): String = when { n <= 0 -> "Not played yet"; n == 1 -> "Pl
 /** Create / rename playlist: a full-screen page with a live, gently floating cover preview of the name you type. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onDismiss: () -> Unit, onAddMusic: ((String) -> Unit)? = null, onConfirm: (String) -> Unit) {
     val accent = LocalAccent.current
     var name by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
@@ -362,6 +363,11 @@ fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onD
                     Text("Ideas", Modifier.align(Alignment.Start).padding(top = 6.dp, bottom = 6.dp), fontSize = 12.sp, color = Color.White.copy(alpha = .6f))
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { ideas.forEach { i -> SuggestionChip({ name = i }, { Text(i) }) } }
                     Spacer(Modifier.height(24.dp))
+                    onAddMusic?.let { addMusic ->
+                        TextButton(onClick = { if (name.isNotBlank()) addMusic(name.trim()) }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                            Icon(Icons.Default.LibraryMusic, null); Spacer(Modifier.width(8.dp)); Text("Create playlist and add music")
+                        }
+                    }
                     EmbossedIconButton({ if (name.isNotBlank()) onConfirm(name.trim()) },
                         Modifier.fillMaxWidth().height(56.dp).graphicsLayer { alpha = if (name.isBlank()) 0.5f else 1f }, RoundedCornerShape(28.dp)) {
                         Text(confirmLabel, fontWeight = FontWeight.Bold)
@@ -373,13 +379,20 @@ fun NamePlaylistDialog(title: String, initial: String, confirmLabel: String, onD
 }
 
 /** Bolder, tighter headings used across the whole app. */
-val NyxenTypography = Typography().let { b ->
-    b.copy(
-        headlineLarge = b.headlineLarge.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-        headlineMedium = b.headlineMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-        headlineSmall = b.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-        titleLarge = b.titleLarge.copy(fontWeight = FontWeight.Bold),
-        titleMedium = b.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+fun NyxenTypography(customFont: FontFamily? = null): Typography {
+    val b = Typography()
+    val font = customFont ?: FontFamily.Default
+    fun styled(style: androidx.compose.ui.text.TextStyle) = style.copy(fontFamily = font)
+    return b.copy(
+        displayLarge = styled(b.displayLarge), displayMedium = styled(b.displayMedium), displaySmall = styled(b.displaySmall),
+        headlineLarge = styled(b.headlineLarge).copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineMedium = styled(b.headlineMedium).copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+        headlineSmall = styled(b.headlineSmall).copy(fontWeight = FontWeight.ExtraBold),
+        titleLarge = styled(b.titleLarge).copy(fontWeight = FontWeight.Bold),
+        titleMedium = styled(b.titleMedium).copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = styled(b.titleSmall),
+        bodyLarge = styled(b.bodyLarge), bodyMedium = styled(b.bodyMedium), bodySmall = styled(b.bodySmall),
+        labelLarge = styled(b.labelLarge), labelMedium = styled(b.labelMedium), labelSmall = styled(b.labelSmall)
     )
 }
 

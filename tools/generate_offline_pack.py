@@ -41,6 +41,10 @@ wallpapers = [
     ((9,4,20),(111,42,133),(12,7,25)),
     ((2,12,23),(10,105,119),(4,9,21)),
     ((5,25,19),(46,99,100),(17,9,34)),
+    ((40,12,7),(205,83,28),(28,7,14)),
+    ((4,19,38),(20,115,173),(2,7,22)),
+    ((22,8,42),(93,53,164),(8,10,29)),
+    ((13,25,45),(35,152,169),(57,27,89)),
 ]
 for i, p in enumerate(wallpapers, 1):
     png(os.path.join(DRAWABLE, f"nyxen_wallpaper_{i:02d}.png"), 720, 1600, p, i*17)
@@ -78,4 +82,4 @@ for filename, notes, style in tracks:
             left = int(max(-.95,min(.95,base*(1-pan)))*32767)
             right = int(max(-.95,min(.95,base*(1+pan)))*32767)
             f.write(struct.pack("<hh", left, right))
-print("Generated 4 wallpapers, 3 album covers, and 3 original offline tracks.")
+print("Generated 8 wallpapers, 3 album covers, and 3 original offline tracks.")

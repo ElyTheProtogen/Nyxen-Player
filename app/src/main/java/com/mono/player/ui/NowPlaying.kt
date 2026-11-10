@@ -99,7 +99,7 @@ private fun WaveSeek(seed: Long, progress: () -> Float, drag: MutableFloatState,
 private fun PlayOrb(playing: Boolean, ring: Animatable<Float, AnimationVector1D>, accent: Color, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val hapticsOn = LocalHaptics.current
-    val on by animateFloatAsState(if (playing) 1f else 0f, tween(300), label = "on")
+    val on by animateFloatAsState(if (playing) 1f else 0f, tween(220), label = "on")
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "orb")
@@ -144,156 +144,235 @@ fun NowPlayingScreen(
     var dragX by remember { mutableFloatStateOf(0f) }
     var dragY by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
-    val shownX by animateFloatAsState(if (dragging) dragX else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioMediumBouncy), label = "sx")
-    val shownY by animateFloatAsState(if (dragging) dragY else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioLowBouncy), label = "sy")
-    val artScale by animateFloatAsState(if (playing) 1f else 0.9f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "as")
-    val prog by animateFloatAsState((pos.toFloat() / duration.coerceAtLeast(1)).coerceIn(0f, 1f), tween(500, easing = LinearEasing), label = "pg")
+    val shownX by animateFloatAsState(if (dragging) dragX else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioMediumBouncy), label = "player-swipe-x")
+    val shownY by animateFloatAsState(if (dragging) dragY else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioLowBouncy), label = "player-swipe-y")
+    val artScale by animateFloatAsState(if (playing) 1f else .97f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "player-art-scale")
+    val progress by animateFloatAsState((pos.toFloat() / duration.coerceAtLeast(1L)).coerceIn(0f, 1f), tween(180, easing = LinearEasing), label = "player-progress")
     val drag = remember { mutableFloatStateOf(-1f) }
     val ring = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val burst = remember { Animatable(0f) }
-    val favNow by rememberUpdatedState(track.favorite)
+    val favorite by rememberUpdatedState(track.favorite)
     var showLyrics by remember { mutableStateOf(false) }
-    LaunchedEffect(playing) { if (playing) while (true) { ring.snapTo(0f); ring.animateTo(1f, tween(1500, easing = LinearOutSlowInEasing)) } }
+
+    LaunchedEffect(playing) {
+        if (playing) while (true) {
+            ring.snapTo(0f)
+            ring.animateTo(1f, tween(1550, easing = LinearOutSlowInEasing))
+        } else ring.snapTo(0f)
+    }
 
     Box(
-        Modifier.fillMaxSize().graphicsLayer { translationY = shownY.coerceAtLeast(0f); alpha = 1f - (shownY / 1400f).coerceIn(0f, .5f) }
-            .background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))
+        Modifier.fillMaxSize()
+            .graphicsLayer { translationY = shownY.coerceAtLeast(0f); alpha = 1f - (shownY / 1400f).coerceIn(0f, .5f) }
+            .background(Brush.verticalGradient(listOf(Color(0xFF171620), Color(0xFF0B0B11), Color(0xFF050509))))
     ) {
-        Crossfade(track.id, animationSpec = tween(700), label = "bg") { id ->
-            Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f; alpha = 0.5f }.blur(40.dp))
+        Crossfade(track.id, animationSpec = tween(220), label = "player-background") { id ->
+            Art(tracks.firstOrNull { it.id == id } ?: track,
+                Modifier.fillMaxSize().graphicsLayer { scaleX = 1.35f; scaleY = 1.35f; alpha = .36f }.blur(52.dp))
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Black.copy(alpha = .26f), Color.Black.copy(alpha = .96f)))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+            listOf(Color.Black.copy(alpha = .68f), Color(0xD20A0910), Color.Black.copy(alpha = .94f))
+        )))
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
 
         Column(
-            Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 22.dp, vertical = 12.dp).pointerInput(Unit) {
-                var tx = 0f; var ty = 0f
-                detectDragGestures(
-                    onDragStart = { tx = 0f; ty = 0f; dragging = true },
-                    onDragEnd = {
-                        dragging = false; dragX = 0f; dragY = 0f
-                        if (kotlin.math.abs(tx) > kotlin.math.abs(ty)) { if (tx < -140f) onNext() else if (tx > 140f) onPrev() }
-                        else if (ty > 220f) onClose()
-                    },
-                    onDragCancel = { dragging = false; dragX = 0f; dragY = 0f }
-                ) { _, d ->
-                    tx += d.x; ty += d.y
-                    val horizontal = kotlin.math.abs(tx) > kotlin.math.abs(ty)
-                    dragX = if (horizontal) tx * 0.6f else 0f
-                    dragY = if (!horizontal) ty.coerceAtLeast(0f) * 0.6f else 0f
-                }
-            },
+            Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 24.dp, vertical = 10.dp)
+                .pointerInput(Unit) {
+                    var totalX = 0f
+                    var totalY = 0f
+                    detectDragGestures(
+                        onDragStart = { totalX = 0f; totalY = 0f; dragging = true },
+                        onDragEnd = {
+                            dragging = false
+                            dragX = 0f
+                            dragY = 0f
+                            if (kotlin.math.abs(totalX) > kotlin.math.abs(totalY)) {
+                                if (totalX < -125f) onNext() else if (totalX > 125f) onPrev()
+                            } else if (totalY > 190f) onClose()
+                        },
+                        onDragCancel = { dragging = false; dragX = 0f; dragY = 0f }
+                    ) { _, delta ->
+                        totalX += delta.x
+                        totalY += delta.y
+                        val horizontal = kotlin.math.abs(totalX) > kotlin.math.abs(totalY)
+                        dragX = if (horizontal) totalX * .48f else 0f
+                        dragY = if (!horizontal) totalY.coerceAtLeast(0f) * .48f else 0f
+                    }
+                },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                EmbossedIconButton(onClose, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
+            Row(Modifier.fillMaxWidth().height(46.dp), verticalAlignment = Alignment.CenterVertically) {
+                EmbossedIconButton(onClose, Modifier.size(44.dp)) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Close player", Modifier.size(27.dp))
+                }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        NowPlayingBars(playing, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp))
-                        Text("NOW PLAYING", fontSize = 10.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        NowPlayingBars(playing, Modifier.size(14.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("NOW PLAYING", fontSize = 10.sp, letterSpacing = 2.4.sp, fontWeight = FontWeight.Black, color = Color.White)
                     }
-                    Text("YOUR SOUNDTRACK", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Color.White.copy(alpha = .54f))
+                    Text("YOUR LIBRARY", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Color.White.copy(alpha = .48f))
                 }
-                EmbossedIconButton(onStudio, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
+                EmbossedIconButton(onStudio, Modifier.size(44.dp)) {
+                    Icon(Icons.Default.Equalizer, "Audio Studio", Modifier.size(21.dp))
+                }
             }
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val s = minOf(maxWidth, maxHeight) * 0.88f
-                Box(
-                    Modifier.size(s).graphicsLayer {
-                        translationX = shownX; rotationZ = shownX / 50f
-                        alpha = 1f - (kotlin.math.abs(shownX) / 900f).coerceIn(0f, .6f)
-                        scaleX = artScale; scaleY = artScale
-                    }.pointerInput(Unit) {
-                        detectTapGestures(onDoubleTap = { if (!favNow) { onFavorite(); scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(650)) } } })
+                val side = minOf(maxWidth * .84f, maxHeight * .94f)
+                Box(Modifier.size(side).graphicsLayer {
+                    translationX = shownX
+                    rotationZ = shownX / 62f
+                    alpha = 1f - (kotlin.math.abs(shownX) / 950f).coerceIn(0f, .55f)
+                }) {
+                    // A visible slice of the record gives the cover a little depth without crowding the screen.
+                    Box(
+                        Modifier.size(side * .91f).align(Alignment.CenterEnd).offset(x = side * .095f)
+                            .graphicsLayer { rotationZ = -13f }
+                            .shadow(24.dp, CircleShape, ambientColor = accent.copy(alpha = .7f), spotColor = accent)
+                            .clip(CircleShape)
+                            .background(Brush.sweepGradient(listOf(Color(0xFF282633), Color(0xFF0B0A10), accent.copy(alpha = .42f), Color(0xFF101016), Color(0xFF282633))))
+                            .border(1.dp, Color.White.copy(alpha = .18f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(Modifier.fillMaxSize(.74f).border(1.dp, Color.White.copy(alpha = .12f), CircleShape))
+                        Box(Modifier.size(18.dp).clip(CircleShape).background(accent.copy(alpha = .8f)))
                     }
-                ) {
-                    listOf(0.84f to 0.30f, 0.92f to 0.50f).forEach { (sc, al) ->
-                        Box(Modifier.fillMaxSize().graphicsLayer { scaleX = sc; scaleY = sc; translationY = size.height * (1f - sc) * 1.1f; alpha = al }
-                            .clip(RoundedCornerShape(38.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .8f), accent.copy(alpha = .22f)))))
+                    Box(
+                        Modifier.size(side * .86f).align(Alignment.CenterStart).offset(x = side * .025f)
+                            .graphicsLayer { scaleX = artScale; scaleY = artScale }
+                            .pointerInput(Unit) {
+                                detectTapGestures(onDoubleTap = {
+                                    if (!favorite) {
+                                        onFavorite()
+                                        scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(240)) }
+                                    }
+                                })
+                            }
+                    ) {
+                        Box(Modifier.fillMaxSize().shadow(30.dp, RoundedCornerShape(30.dp), ambientColor = accent, spotColor = accent)
+                            .clip(RoundedCornerShape(30.dp))) {
+                            Crossfade(track.id, animationSpec = tween(200), label = "player-cover") { id ->
+                                Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize(), 30.dp)
+                            }
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+                                listOf(Color.White.copy(alpha = .07f), Color.Transparent, Color.Black.copy(alpha = .18f))
+                            )))
+                            Box(Modifier.fillMaxSize().border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(30.dp)))
+                        }
+                        Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.Center).size(86.dp).graphicsLayer {
+                            val amount = burst.value
+                            val scale = .45f + amount * .8f
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = kotlin.math.sin(amount * Math.PI).toFloat()
+                        }, tint = Color.White)
                     }
-                    Crossfade(track.id, animationSpec = tween(500), label = "art") { id ->
-                        Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().shadow(34.dp, RoundedCornerShape(38.dp), ambientColor = accent, spotColor = accent).border(1.dp, Color.White.copy(alpha = .24f), RoundedCornerShape(38.dp)), 38.dp)
-                    }
-                    Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.Center).size(110.dp).graphicsLayer {
-                        val b = burst.value; val k = 0.4f + 0.9f * b; scaleX = k; scaleY = k; alpha = kotlin.math.sin(b * Math.PI).toFloat()
-                    }, tint = Color.White)
                 }
             }
 
-            Reveal(100) {
-                Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AnimatedContent(track.id, Modifier.weight(1f), transitionSpec = {
-                        (slideInVertically(tween(350)) { it / 2 } + fadeIn(tween(350))) togetherWith (slideOutVertically(tween(250)) { -it / 2 } + fadeOut(tween(250)))
-                    }, label = "title") { id ->
-                        val t = tracks.firstOrNull { it.id == id } ?: track
-                        Column {
-                            Text(t.title, Modifier.basicMarquee(), fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp, color = Color.White, maxLines = 1, softWrap = false)
-                            Text("${t.artist}  /  ${t.album}", color = Color.White.copy(alpha = .78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(playsText(t.playCount).uppercase(), fontSize = 9.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold, color = accent)
-                        }
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                AnimatedContent(
+                    track.id,
+                    Modifier.weight(1f),
+                    transitionSpec = {
+                        (slideInVertically(tween(180)) { it / 3 } + fadeIn(tween(180))) togetherWith
+                            (slideOutVertically(tween(180)) { -it / 3 } + fadeOut(tween(150)))
+                    },
+                    label = "player-track-details"
+                ) { id ->
+                    val current = tracks.firstOrNull { it.id == id } ?: track
+                    Column {
+                        Text(current.title, Modifier.basicMarquee(), fontSize = 27.sp, fontWeight = FontWeight.Black,
+                            letterSpacing = (-.8).sp, color = Color.White, maxLines = 1, softWrap = false)
+                        Text(current.artist, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = .78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(current.album, fontSize = 9.sp, letterSpacing = 1.5.sp,
+                            color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    EmbossedIconButton(onFavorite, Modifier.size(48.dp)) {
-                        Crossfade(track.favorite, label = "fav") { f ->
-                            Icon(if (f) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorite",
-                                Modifier.scale(animateFloatAsState(if (f) 1.25f else 1f, spring(Spring.DampingRatioHighBouncy), label = "pop").value))
-                        }
+                }
+                Spacer(Modifier.width(12.dp))
+                EmbossedIconButton(onFavorite, Modifier.size(48.dp)) {
+                    Crossfade(track.favorite, label = "player-favorite") { isFavorite ->
+                        Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            Modifier.scale(animateFloatAsState(if (isFavorite) 1.12f else 1f, spring(Spring.DampingRatioHighBouncy), label = "player-favorite-pop").value),
+                            tint = if (isFavorite) accent else Color.White)
                     }
                 }
             }
-            Reveal(160) {
-                Column(Modifier.padding(top = 14.dp)) {
-                    WaveSeek(track.id, { prog }, drag, { f -> onSeek((f * duration).toLong()) }, accent, Modifier.fillMaxWidth().height(54.dp))
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                        Text(fmt(if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos), color = Color.White, fontSize = 12.sp)
-                        Spacer(Modifier.weight(1f)); Text("-${fmt((duration - (if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos)).coerceAtLeast(0L))}  ·  ${fmt(duration)}", color = Color.White, fontSize = 12.sp)
-                    }
+
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                WaveSeek(track.id, { progress }, drag, { fraction -> onSeek((fraction * duration).toLong()) },
+                    accent, Modifier.fillMaxWidth().height(42.dp))
+                Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(fmt(if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos),
+                        color = Color.White.copy(alpha = .70f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Text("-${fmt((duration - (if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos)).coerceAtLeast(0L))}",
+                        color = Color.White.copy(alpha = .70f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            Reveal(220) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    EmbossedIconButton(onMode, Modifier.size(44.dp)) {
-                        Crossfade(mode, label = "mode") { m ->
-                            Icon(when (m) { PlayMode.REPEAT_ALL -> Icons.Default.Repeat; PlayMode.REPEAT_ONE -> Icons.Default.RepeatOne
-                                PlayMode.IN_ORDER -> Icons.Default.ArrowRightAlt; PlayMode.SHUFFLE -> Icons.Default.Shuffle }, "Playback mode: ${m.name}")
-                        }
+
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                EmbossedIconButton(onMode, Modifier.size(44.dp)) {
+                    Crossfade(mode, label = "player-mode") { currentMode ->
+                        Icon(when (currentMode) {
+                            PlayMode.REPEAT_ALL -> Icons.Default.Repeat
+                            PlayMode.REPEAT_ONE -> Icons.Default.RepeatOne
+                            PlayMode.IN_ORDER -> Icons.Default.ArrowRightAlt
+                            PlayMode.SHUFFLE -> Icons.Default.Shuffle
+                        }, "Playback mode: ${currentMode.name}")
                     }
-                    EmbossedIconButton(onPrev, Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(30.dp)) }
-                    PlayOrb(playing, ring, accent, onPlayPause)
-                    EmbossedIconButton(onNext, Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(30.dp)) }
-                    EmbossedIconButton(onQueue, Modifier.size(44.dp)) { Icon(Icons.Default.QueueMusic, "Queue") }
+                }
+                EmbossedIconButton(onPrev, Modifier.size(52.dp)) {
+                    Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(29.dp))
+                }
+                PlayOrb(playing, ring, accent, onPlayPause)
+                EmbossedIconButton(onNext, Modifier.size(52.dp)) {
+                    Icon(Icons.Default.SkipNext, "Next", Modifier.size(29.dp))
+                }
+                EmbossedIconButton(onQueue, Modifier.size(44.dp)) {
+                    Icon(Icons.Default.QueueMusic, "Open queue", Modifier.size(21.dp))
                 }
             }
-            Reveal(280) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ActionPill(Icons.Default.PlaylistAdd, "Playlist", onAddToPlaylist)
-                        ActionPill(Icons.Default.OpenInNew, "Spotify", onSpotify)
-                        ActionPill(Icons.Default.Equalizer, "EQ", onStudio)
-                        ActionPill(Icons.Default.Bedtime, if (sleepActive) "Sleep on" else "Sleep", onSleep)
-                        ActionPill(Icons.Default.Notes, "Lyrics") { showLyrics = true }
-                    }
-                    Crossfade(nextTitle, label = "next") { nt ->
-                        if (nt != null) Row(
-                            Modifier.padding(top = 12.dp, bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = .14f), Color.White.copy(alpha = .05f))))
-                                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(16.dp)).clickable(onClick = onQueue).padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("UP NEXT", fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Black, color = accent)
-                            Spacer(Modifier.width(10.dp))
-                            Text(nt, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionPill(Icons.Default.PlaylistAdd, "Playlist", onAddToPlaylist)
+                ActionPill(Icons.Default.OpenInNew, "Spotify", onSpotify)
+                ActionPill(Icons.Default.Bedtime, if (sleepActive) "Sleep on" else "Sleep", onSleep)
+                ActionPill(Icons.Default.Notes, "Lyrics") { showLyrics = true }
+            }
+
+            if (!nextTitle.isNullOrBlank()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = .055f))
+                        .clickable(onClick = onQueue)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.SkipNext, null, Modifier.size(15.dp), tint = accent)
+                    Spacer(Modifier.width(7.dp))
+                    Text("UP NEXT", fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Black, color = accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text(nextTitle, Modifier.weight(1f), color = Color.White.copy(alpha = .82f),
+                        fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Default.ChevronRight, null, Modifier.size(17.dp), tint = Color.White.copy(alpha = .55f))
                 }
             }
         }
-        AnimatedVisibility(showLyrics, enter = fadeIn(tween(250)) + slideInVertically(tween(300)) { it / 4 }, exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it / 4 }) {
+
+        AnimatedVisibility(showLyrics, enter = fadeIn(tween(200)) + slideInVertically(tween(180)) { it / 5 },
+            exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { it / 5 }) {
             LyricsPanel(lyrics, pos, track.title, { showLyrics = false }, onAddLyrics, onClearLyrics)
         }
     }
 }
-
 private class LrcLine(val ms: Long, val text: String)
 
 /** Reads [mm:ss.xx] timestamps from an .lrc file. Returns nothing for plain text. */

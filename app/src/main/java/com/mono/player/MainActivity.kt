@@ -3,6 +3,9 @@ package com.mono.player
 import android.Manifest
 import android.content.ComponentName
 import android.graphics.BitmapFactory
+import android.graphics.Typeface
+import android.widget.Toast
+import java.io.File
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -66,6 +69,9 @@ import androidx.media3.common.PlaybackException
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.mono.player.ui.SettingsScreen
+import com.mono.player.ui.restoreCustomThemes
+import com.mono.player.LocalButtonSounds
+import androidx.compose.ui.text.font.FontFamily
 import com.mono.player.ui.Themes
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.absoluteValue
@@ -122,18 +128,31 @@ class MainActivity : ComponentActivity() {
         )
         AudioFx.load(this)
         val prefs = getSharedPreferences("mono", MODE_PRIVATE)
+        restoreCustomThemes(this)
         setContent {
+            var customFontPath by remember { mutableStateOf(prefs.getString("customFontPath", "") ?: "") }
+            var buttonSounds by remember { mutableStateOf(prefs.getBoolean("buttonSounds", false)) }
+            val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) runCatching {
+                    val file = File(filesDir, "nyxen-custom-font")
+                    contentResolver.openInputStream(uri)?.use { input -> file.outputStream().use(input::copyTo) }
+                    customFontPath = file.absolutePath
+                    prefs.edit().putString("customFontPath", customFontPath).apply()
+                }
+            }
+            val customFontFamily = remember(customFontPath) { runCatching { if (customFontPath.isBlank()) null else FontFamily(Typeface.createFromFile(customFontPath)) }.getOrNull() }
+            val typography = remember(customFontFamily) { NyxenTypography(customFontFamily) }
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
-            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 4)) }
+            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 8)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
             var coverMatch by remember { mutableStateOf(prefs.getBoolean("covermatch", true)) }
             var coverAccent by remember { mutableStateOf<Color?>(null) }
             val accent by animateColorAsState(if (coverMatch) (coverAccent ?: Themes[themeIdx].accent) else Themes[themeIdx].accent, tween(700), label = "accent")
-            MaterialTheme(typography = NyxenTypography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
+            MaterialTheme(typography = typography, colorScheme = darkColorScheme(primary = accent, onPrimary = Color.White, secondaryContainer = accent.copy(alpha = .35f),
                 onSecondaryContainer = Color.White, surfaceContainerHigh = Color(0xFF17131F), onBackground = Color.White, onSurface = Color.White, onSurfaceVariant = Color.White)) {
-                CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics) {
-                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it },
-                        coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it })
+                CompositionLocalProvider(LocalContentColor provides Color.White, LocalAccent provides accent, LocalHaptics provides haptics, LocalButtonSounds provides buttonSounds) {
+                    App(themeIdx, { themeIdx = it }, wallpaperIdx, { wallpaperIdx = it; prefs.edit().putInt("wallpaper", it).apply() }, haptics, { haptics = it }, buttonSounds, { buttonSounds = it; prefs.edit().putBoolean("buttonSounds", it).apply() },
+                        coverMatch, { coverMatch = it; prefs.edit().putBoolean("covermatch", it).apply() }, { coverAccent = it }, customFontPath, { fontPicker.launch(arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/vnd.ms-opentype")) })
                 }
             }
         }
@@ -209,7 +228,7 @@ fun Art(t: Track?, mod: Modifier, corner: Dp = 16.dp) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit) {
+fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper: (Int) -> Unit, haptics: Boolean, setHaptics: (Boolean) -> Unit, buttonSounds: Boolean, setButtonSounds: (Boolean) -> Unit, coverMatch: Boolean, setCoverMatch: (Boolean) -> Unit, onCover: (Color?) -> Unit, customFontPath: String, onImportFont: () -> Unit) {
     val ctx = LocalContext.current; val scope = rememberCoroutineScope()
     val prefs = remember { ctx.getSharedPreferences("mono", android.content.Context.MODE_PRIVATE) }
     val accent = LocalAccent.current
@@ -231,12 +250,20 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var addFor by remember { mutableStateOf<Track?>(null) }
     var showQueue by remember { mutableStateOf(false) }
     var newPl by remember { mutableStateOf(false) }
+    var pendingPlaylistMusicId by remember { mutableStateOf<Long?>(null) }
 
         var autoImport by remember { mutableStateOf(prefs.getBoolean("auto", true)) }
     var sub by remember { mutableIntStateOf(0) }
     var speed by remember { mutableFloatStateOf(prefs.getFloat("speed", 1f)) }
     var autoResume by remember { mutableStateOf(prefs.getBoolean("autoResume", false)) }
+    var rememberQueue by remember { mutableStateOf(prefs.getBoolean("rememberQueue", true)) }
+    val rememberQueueLatest by rememberUpdatedState(rememberQueue)
+    var autoplaySimilar by remember { mutableStateOf(prefs.getBoolean("autoplaySimilar", false)) }
+    val autoplaySimilarLatest by rememberUpdatedState(autoplaySimilar)
+    val latestTracks by rememberUpdatedState(tracks)
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keepAwake", false)) }
+    var pauseOnDisconnect by remember { mutableStateOf(prefs.getBoolean("pauseOnDisconnect", true)) }
+    var sleepFade by remember { mutableStateOf(prefs.getBoolean("sleepFade", true)) }
     var sleepEnd by remember { mutableLongStateOf(0L) }
     var restored by remember { mutableStateOf(false) }
     var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
@@ -280,39 +307,89 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
+        rememberQueue = true; autoplaySimilar = false; pauseOnDisconnect = true; sleepFade = true
         profName = ""; profEmail = ""; profVerified = false; guestMode = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
+    fun persistQueuePosition(player: Player) {
+        if (!rememberQueueLatest) return
+        prefs.edit().putInt("savedQueueIndex", player.currentMediaItemIndex.coerceAtLeast(0))
+            .putLong("savedQueuePosition", player.currentPosition.coerceAtLeast(0L)).apply()
+    }
+    fun persistQueue(player: Player, force: Boolean = false) {
+        if (!force && !rememberQueueLatest) return
+        val ids = org.json.JSONArray()
+        for (index in 0 until player.mediaItemCount) {
+            player.getMediaItemAt(index).mediaId.toLongOrNull()?.let { ids.put(it) }
+        }
+        prefs.edit().putString("savedQueue", ids.toString())
+            .putInt("savedQueueIndex", player.currentMediaItemIndex.coerceAtLeast(0))
+            .putLong("savedQueuePosition", player.currentPosition.coerceAtLeast(0L)).apply()
+    }
+    fun appendSimilarTrack(player: Player) {
+        if (!autoplaySimilarLatest || player.mediaItemCount == 0 || player.currentMediaItemIndex != player.mediaItemCount - 1) return
+        val currentId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val current = latestTracks.firstOrNull { it.id == currentId } ?: return
+        val queued = mutableSetOf<Long>()
+        for (index in 0 until player.mediaItemCount) player.getMediaItemAt(index).mediaId.toLongOrNull()?.let { queued.add(it) }
+        val candidates = latestTracks.filter { it.id !in queued }
+        val matches = candidates.filter { candidate ->
+            (current.artist.isNotBlank() && candidate.artist.equals(current.artist, ignoreCase = true)) ||
+                (current.genre.isNotBlank() && candidate.genre.equals(current.genre, ignoreCase = true))
+        }
+        val next = (matches.ifEmpty { candidates }).shuffled().firstOrNull() ?: return
+        player.addMediaItem(mi(next))
+    }
     LaunchedEffect(Unit) {
         
         val f = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))).buildAsync()
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
             m.addListener(object : Player.Listener {
-                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() } }
+                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m); appendSimilarTrack(m) }
+                override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { persistQueue(m) }
                 override fun onPlayerError(error: PlaybackException) { msg = "Couldn't play this file. It may have been moved or deleted." }
-                override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) prefs.edit().putLong("lastPos", m.currentPosition).apply() }
+                override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) { prefs.edit().putLong("lastPos", m.currentPosition).apply(); persistQueuePosition(m) } }
             })
+            persistQueue(m)
         }, MoreExecutors.directExecutor())
     }
     DisposableEffect(c) { val old = c; onDispose { old?.release() } }
     LaunchedEffect(c, tracks.size) {
         val m = c ?: return@LaunchedEffect
         if (restored || m.mediaItemCount > 0 || tracks.isEmpty()) return@LaunchedEffect
-        val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
-        if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); if (autoResume) m.play(); restored = true; curId = "${tracks[i].id}" }
+        if (rememberQueue && prefs.contains("savedQueue")) {
+            val savedIds = runCatching {
+                val json = org.json.JSONArray(prefs.getString("savedQueue", "[]"))
+                (0 until json.length()).mapNotNull { index -> json.optLong(index).takeIf { it > 0L } }
+            }.getOrDefault(emptyList())
+            val savedTracks = savedIds.mapNotNull { id -> tracks.firstOrNull { it.id == id } }
+            if (savedTracks.isEmpty()) {
+                m.clearMediaItems(); restored = true; curId = null
+                return@LaunchedEffect
+            }
+            val index = prefs.getInt("savedQueueIndex", 0).coerceIn(0, savedTracks.lastIndex)
+            val position = prefs.getLong("savedQueuePosition", prefs.getLong("lastPos", 0L)).coerceAtLeast(0L)
+            m.setMediaItems(savedTracks.map(::mi), index, position)
+            mode.apply(m); m.prepare(); if (autoResume) m.play()
+            restored = true; curId = "${savedTracks[index].id}"
+        } else {
+            val i = tracks.indexOfFirst { it.id == prefs.getLong("lastId", -1L) }
+            if (i >= 0) { m.setMediaItems(tracks.map(::mi), i, prefs.getLong("lastPos", 0L)); mode.apply(m); m.prepare(); if (autoResume) m.play(); restored = true; curId = "${tracks[i].id}" }
+        }
     }
     LaunchedEffect(full) { if (full) pos = c?.currentPosition ?: 0 }
-    LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
+    LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) { prefs.edit().putLong("lastPos", p).apply(); c?.let(::persistQueuePosition) }; delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
-    LaunchedEffect(sleepEnd) {
+    LaunchedEffect(sleepEnd, sleepFade) {
         if (sleepEnd > 0) {
             try {
-                val fade = 20_000L
-                delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
-                val steps = 40
-                for (k in 1..steps) { c?.volume = 1f - k / steps.toFloat(); delay(fade / steps) }
+                if (sleepFade) {
+                    val fade = 20_000L.coerceAtMost((sleepEnd - System.currentTimeMillis()).coerceAtLeast(1L))
+                    delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
+                    for (k in 1..40) { c?.volume = 1f - k / 40f; delay(fade / 40) }
+                } else delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0))
                 c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished"
             } finally { c?.volume = 1f }
         }
@@ -383,13 +460,21 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     val lyricsFlow = remember(curIdL) { if (curIdL == null) flowOf<String?>(null) else dao.lyricsFlow(curIdL) }
     val lyrics by lyricsFlow.collectAsState(null)
     fun closeApp() {
+        c?.let { persistQueue(it); persistQueuePosition(it) }
         prefs.edit().putLong("lastPos", c?.currentPosition ?: 0L).apply()
         AudioFx.save(ctx)
         c?.pause()
         ctx.findActivity()?.finishAndRemoveTask()
     }
     BackHandler(tab != 0) { scope.launch { pager.animateScrollToPage(0) } }
-    BackHandler(tab == 0) { closeApp() }
+    var lastHomeBack by remember { mutableLongStateOf(0L) }
+    BackHandler(tab == 0) {
+        val now = System.currentTimeMillis()
+        if (now - lastHomeBack < 2000L) closeApp() else {
+            lastHomeBack = now
+            Toast.makeText(ctx, "Press back again to exit Nyxen", Toast.LENGTH_SHORT).show()
+        }
+    }
     fun play(list: List<Track>, i: Int) { if (c == null) { msg = "Player is still starting, try again"; return }; c?.run { setMediaItems(list.map(::mi), i, 0); mode.apply(this); prepare(); play() } }
     fun pauseWithFade() { scope.launch { val player = c ?: return@launch; val original = player.volume; for (step in 1..8) { player.volume = original * (1f - step / 8f); delay(25) }; player.pause(); player.volume = original } }
 
@@ -456,7 +541,11 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                 1 -> com.mono.player.R.drawable.nyxen_wallpaper_01
                 2 -> com.mono.player.R.drawable.nyxen_wallpaper_02
                 3 -> com.mono.player.R.drawable.nyxen_wallpaper_03
-                else -> com.mono.player.R.drawable.nyxen_wallpaper_04
+                4 -> com.mono.player.R.drawable.nyxen_wallpaper_04
+                5 -> com.mono.player.R.drawable.nyxen_wallpaper_05
+                6 -> com.mono.player.R.drawable.nyxen_wallpaper_06
+                7 -> com.mono.player.R.drawable.nyxen_wallpaper_07
+                else -> com.mono.player.R.drawable.nyxen_wallpaper_08
             }
             Image(painterResource(wallpaper), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.58f)))
@@ -741,11 +830,24 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                         haptics, { setHaptics(it); prefs.edit().putBoolean("haptics", it).apply() }, speed, { speed = it; prefs.edit().putFloat("speed", it).apply() },
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
                         { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
+                        {
+                            val player = c
+                            val remaining = if (player != null && player.duration > 0L) (player.duration - player.currentPosition).coerceAtLeast(0L) else 0L
+                            if (remaining > 0L) { sleepMin = 0; sleepEnd = System.currentTimeMillis() + remaining; msg = "Sleep timer set for end of track" }
+                            else msg = "Play a track to set an end-of-track timer"
+                        },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
-                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" })
+                        rememberQueue, { enabled ->
+                            rememberQueue = enabled
+                            if (enabled) { prefs.edit().putBoolean("rememberQueue", true).apply(); c?.takeIf { it.mediaItemCount > 0 }?.let { persistQueue(it, force = true) } }
+                            else prefs.edit().putBoolean("rememberQueue", false).remove("savedQueue").remove("savedQueueIndex").remove("savedQueuePosition").apply()
+                        },
+                        autoplaySimilar, { autoplaySimilar = it; prefs.edit().putBoolean("autoplaySimilar", it).apply() },
+                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont,
+                        pauseOnDisconnect, { pauseOnDisconnect = it; prefs.edit().putBoolean("pauseOnDisconnect", it).apply() }, sleepFade, { sleepFade = it; prefs.edit().putBoolean("sleepFade", it).apply() })
                 }
             }
             }
@@ -869,5 +971,40 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     addFor?.let { t -> AlertDialog({ addFor = null }, confirmButton = { TextButton({ addFor = null }) { Text("Cancel") } }, title = { Text("Add to playlist") }, text = {
         if (playlists.isEmpty()) Text("Create a playlist first.") else LazyColumn { items(playlists) { p ->
             ListItem({ Text(p.name) }, Modifier.clickable { scope.launch { dao.addToPlaylist(PlaylistTrack(p.id, t.id, dao.count(p.id))) }; addFor = null }) } } }) }
-    if (newPl) NamePlaylistDialog("New playlist", "", "Create", { newPl = false }) { n -> scope.launch { dao.addPlaylist(Playlist(name = n)) }; newPl = false }
+    pendingPlaylistMusicId?.let { playlistId ->
+        var chosen by remember(playlistId) { mutableStateOf(emptySet<Long>()) }
+        AlertDialog(
+            onDismissRequest = { pendingPlaylistMusicId = null },
+            title = { Text("Add music to playlist") },
+            text = {
+                if (tracks.isEmpty()) Text("Import music into your library first.")
+                else LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(tracks, key = { it.id }) { track ->
+                        Row(Modifier.fillMaxWidth().clickable { chosen = if (track.id in chosen) chosen - track.id else chosen + track.id }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(track.id in chosen, { checked -> chosen = if (checked) chosen + track.id else chosen - track.id })
+                            Column(Modifier.padding(start = 8.dp)) {
+                                Text(track.title, maxLines = 1)
+                                Text(track.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = Color.White.copy(.65f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        var position = dao.count(playlistId)
+                        chosen.forEach { trackId -> dao.addToPlaylist(PlaylistTrack(playlistId, trackId, position++)) }
+                        msg = "${chosen.size} tracks added"
+                        pendingPlaylistMusicId = null
+                    }
+                }, enabled = chosen.isNotEmpty()) { Text("Add ${chosen.size}") }
+            },
+            dismissButton = { TextButton({ pendingPlaylistMusicId = null }) { Text("Done") } }
+        )
+    }
+    if (newPl) NamePlaylistDialog("New playlist", "", "Create", { newPl = false }, onAddMusic = { name ->
+        scope.launch { pendingPlaylistMusicId = dao.addPlaylist(Playlist(name = name)) }
+        newPl = false
+    }) { n -> scope.launch { dao.addPlaylist(Playlist(name = n)) }; newPl = false }
 }
