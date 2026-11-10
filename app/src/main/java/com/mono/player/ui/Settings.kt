@@ -368,19 +368,57 @@ fun SettingsScreen(
                 }
                 6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe, profVerified)
                 7 -> StatsScreen(tracks)
-                else -> Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Reveal(0) {
-                        GlassCard(Modifier.fillMaxWidth()) {
-                            Text("Nyxen Player", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Version 1.3 · Built for your library", style = MaterialTheme.typography.bodySmall, color = LocalAccent.current)
-                            Spacer(Modifier.height(10.dp))
-                            Text("A calm, offline-first music player for the songs you already own. Your library, playlists, listening history, imported fonts, themes, and artwork stay on this device.")
-                            Spacer(Modifier.height(8.dp))
-                            Text("Nyxen does not upload your music or require a streaming account to play local audio.", style = MaterialTheme.typography.bodySmall)
-                        }
+                5 -> AboutSettings()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutSettings() {
+    val accent = LocalAccent.current
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Reveal(0) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))
+                            .background(Brush.linearGradient(listOf(accent, lerp(accent, Color.Black, .58f)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.MusicNote, null, tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text("ABOUT NYXEN", fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Black, color = accent)
+                        Text("A note from Remnant", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Hi, I’m Remnant. I built NyxenPlayer because I wanted a music app that feels as good as the music sounds.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = .92f)
+                )
             }
+        }
+        AboutStoryCard("WHY I STARTED", "For a long time I used players that were either too plain or too crowded. Some were full of ads, some were locked behind subscriptions, and many were made for streaming when all I wanted was to play the songs already on my phone. So I decided to make the one I was missing.", 60)
+        AboutStoryCard("A PLAYER THAT GREW", "It started as a tiny player with a single play button. Then I kept adding the things I wished I had: gradient themes that match my mood, a sound studio to shape the bass, lyrics that follow the song, playlists that fill themselves, and a design that looks great at night.", 110)
+        AboutStoryCard("MADE FOR YOUR MUSIC", "NyxenPlayer is made for people who love their own music collection, whether that is a few favorite albums or thousands of songs collected over the years. I hope it makes your everyday listening a little more fun.", 160)
+        AboutStoryCard("STILL GROWING", "This is a personal project and it keeps growing. If something is missing, broken or could simply be better, I would really love to hear about it. Thank you for using NyxenPlayer, and enjoy the music.", 210)
+        Reveal(260) {
+            Text("— Sincerely, Remnant (aka. Sinner)", Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+@Composable
+private fun AboutStoryCard(title: String, body: String, delay: Int) {
+    Reveal(delay) {
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text(title, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Black, color = LocalAccent.current)
+            Spacer(Modifier.height(8.dp))
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .86f))
         }
     }
 }
