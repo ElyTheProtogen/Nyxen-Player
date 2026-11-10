@@ -246,7 +246,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     val audioPerm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
     val notif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun askNotif() { if (Build.VERSION.SDK_INT >= 33) notif.launch(Manifest.permission.POST_NOTIFICATIONS) }
-    fun rescan(manual: Boolean = false) { if (scanning) return; scope.launch { scanning = true; val r = DeviceScan.run(ctx); scanning = false; prefs.edit().putLong("lastScan", System.currentTimeMillis()).apply(); if (r.added > 0) msg = "Added ${r.added} new songs" else if (manual) msg = "No new songs found" } }
+    fun rescan(manual: Boolean = false) { if (scanning) return; scope.launch { scanning = true; try { val r = DeviceScan.run(ctx); prefs.edit().putLong("lastScan", System.currentTimeMillis()).apply(); if (manual || r.added > 0 || r.failed > 0) msg = "Scan complete: ${r.added} added, ${r.duplicates} already in library, ${r.failed} failed" } catch (e: Exception) { msg = "Scan failed: ${e.localizedMessage?.take(80) ?: "unknown error"}" } finally { scanning = false } } }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) rescan(true) else msg = "Permission denied. You can still add songs with Import music."
         askNotif()
