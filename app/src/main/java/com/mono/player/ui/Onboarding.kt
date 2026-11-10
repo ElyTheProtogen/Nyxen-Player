@@ -58,12 +58,12 @@ fun SplashScreen() {
     val t = rememberInfiniteTransition(label = "splash")
     val pulse by t.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     val glow by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "glow")
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF111111), Color(0xFF000000)))), Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B)))), Alignment.Center) {
         AuroraGlow(accent, Modifier.fillMaxSize())
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(painterResource(R.drawable.ic_launcher_foreground), null,
                 Modifier.size(180.dp).graphicsLayer { scaleX = pulse; scaleY = pulse; alpha = 0.7f + 0.3f * glow })
-            Text("NyxenPlayer", fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Color.White)
+            Text("NYXEN", fontSize = 34.sp, fontWeight = FontWeight.Black, letterSpacing = 7.sp, color = Color.White)
             Spacer(Modifier.height(22.dp))
             LinearProgressIndicator(Modifier.width(140.dp).clip(RoundedCornerShape(50)), color = accent, trackColor = Color.White.copy(alpha = .15f))
         }
@@ -90,7 +90,7 @@ private fun FeatureCard(icon: ImageVector, title: String, text: String) {
             .border(1.dp, Color.White.copy(alpha = .14f), shape).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White), Alignment.Center) { Icon(icon, null, tint = Color.Black) }
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(LocalAccent.current), Alignment.Center) { Icon(icon, null, tint = Color(0xFF101016)) }
         Spacer(Modifier.width(14.dp))
         Column { Text(title, fontWeight = FontWeight.SemiBold, color = Color.White); Text(text, fontSize = 13.sp, color = Color.White.copy(alpha = .7f)) }
     }
@@ -114,7 +114,7 @@ fun WelcomeScreen(
     BackHandler(enabled = busy) { /* Keep the authentication flow stable until Google returns. */ }
     val breathe = rememberInfiniteTransition(label = "breathe")
     val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0E0E0E), Color(0xFF000000))))) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))) {
         AuroraGlow(accent, Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
             HorizontalPager(pager, Modifier.weight(1f)) { page ->
@@ -131,14 +131,14 @@ fun WelcomeScreen(
                             Text("Your music, your way.\nEverything stays on this device.", color = Color.White.copy(alpha = .8f), textAlign = TextAlign.Center)
                         }
                         1 -> {
-                            Text("Made for your music", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+                            Text("A player that feels\nlike yours.", fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(18.dp))
                             FeatureCard(Icons.Default.LibraryMusic, "Your library", "Finds and plays .mp3, .m4a, .ogg and .wav files from your phone")
                             FeatureCard(Icons.Default.Equalizer, "Studio sound", "Equalizer, bass boost and reverb with your own presets")
                             FeatureCard(Icons.Default.Palette, "26 themes", "Gradient themes that recolor every button and glow")
                         }
                         else -> {
-                            Text("Create your profile", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+                            Text("Make it personal.", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
                             if (googleEnabled) {
                                 Text("Sign in with your Google (Gmail) account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
                                 Box(
@@ -245,8 +245,8 @@ private fun GoogleSignInLoading() {
         AuroraGlow(accent, Modifier.fillMaxSize())
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 32.dp).clip(RoundedCornerShape(32.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF24202E), Color(0xFF111116))))
-                .border(1.dp, accent.copy(alpha = .42f), RoundedCornerShape(32.dp)).padding(30.dp),
+                .background(Color(0xFF191820))
+                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(32.dp)).padding(30.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {

@@ -400,13 +400,13 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         val isCur = t.id == curIdL
         val shape = RoundedCornerShape(20.dp)
         val isSel = t.id in selected
-        val bg by animateColorAsState(if (isSel) accent.copy(alpha = .4f) else if (isCur) accent.copy(alpha = .22f) else Color.Black.copy(alpha = .28f), tween(300), label = "rowbg")
+        val bg by animateColorAsState(if (isSel) accent.copy(alpha = .4f) else if (isCur) accent.copy(alpha = .22f) else Color(0xD91A1A22), tween(300), label = "rowbg")
         val src = remember { MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
         val sc by animateFloatAsState(if (pressed) 0.97f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "rowpress")
         Row(
             Modifier.fillMaxWidth().padding(vertical = 4.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(bg)
-                .border(1.dp, if (isCur) accent.copy(alpha = .7f) else Color.White.copy(alpha = .08f), shape)
+                .border(1.dp, if (isCur) accent.copy(alpha = .72f) else Color.White.copy(alpha = .09f), shape)
                 .combinedClickable(src, null, onClick = { if (selected.isNotEmpty()) selected = if (isSel) selected - t.id else selected + t.id else play(list, i) },
                     onLongClick = { selected = if (isSel) selected - t.id else selected + t.id }).padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -418,7 +418,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(t.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.title, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${t.artist} · ${t.album}", fontSize = 12.sp, color = Color.White.copy(alpha = .7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(playsText(t.playCount), fontSize = 11.sp, color = accent)
             }

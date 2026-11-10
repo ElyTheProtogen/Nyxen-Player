@@ -88,7 +88,7 @@ private fun WaveSeek(seed: Long, progress: () -> Float, drag: MutableFloatState,
         for (i in 0 until n) {
             val h = bars[i] * size.height
             val played = (i + 0.5f) / n <= p
-            drawRoundRect(if (played) Color.White else Color.White.copy(alpha = .28f), Offset(i * (w + gap), (size.height - h) / 2f), Size(w, h), CornerRadius(w / 2))
+            drawRoundRect(if (played) Brush.verticalGradient(listOf(Color.White, accent.copy(alpha = .78f))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = .22f), Color.White.copy(alpha = .22f))), Offset(i * (w + gap), (size.height - h) / 2f), Size(w, h), CornerRadius(w / 2))
         }
         val head = 3.dp.toPx()
         drawRoundRect(accent, Offset(p * (size.width - head), 0f), Size(head, size.height), CornerRadius(head / 2))
@@ -103,15 +103,15 @@ private fun PlayOrb(playing: Boolean, ring: Animatable<Float, AnimationVector1D>
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.9f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "orb")
-    Box(Modifier.size(100.dp), Alignment.Center) {
-        Box(Modifier.size(80.dp).graphicsLayer { val s = 1f + 0.4f * ring.value; scaleX = s; scaleY = s; alpha = (1f - ring.value) * 0.55f * on }.border(2.dp, accent, CircleShape))
+    Box(Modifier.size(112.dp), Alignment.Center) {
+        Box(Modifier.size(96.dp).graphicsLayer { val s = 1f + 0.28f * ring.value; scaleX = s; scaleY = s; alpha = (1f - ring.value) * 0.45f * on }.border(1.5.dp, accent, CircleShape))
         Box(
-            Modifier.size(80.dp).graphicsLayer { scaleX = sc; scaleY = sc }.shadow(20.dp, CircleShape, ambientColor = accent, spotColor = accent)
+            Modifier.size(84.dp).graphicsLayer { scaleX = sc; scaleY = sc }.shadow(12.dp, CircleShape, ambientColor = accent, spotColor = accent)
                 .clip(CircleShape).background(Color.White)
                 .clickable(src, null) { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
             Alignment.Center
         ) {
-            Crossfade(playing, label = "orbIcon") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, if (p) "Pause" else "Play", Modifier.size(42.dp), tint = Color.Black) }
+            Crossfade(playing, label = "orbIcon") { p -> Icon(if (p) Icons.Default.Pause else Icons.Default.PlayArrow, if (p) "Pause" else "Play", Modifier.size(44.dp), tint = Color.Black) }
         }
     }
 }
@@ -125,9 +125,9 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
-            .clip(shape).background(Color.White.copy(alpha = .10f)).border(1.dp, Color.White.copy(alpha = .18f), shape)
+            .clip(shape).background(Color(0xCC24232D)).border(1.dp, Color.White.copy(alpha = .12f), shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+            .padding(horizontal = 17.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) { Icon(icon, null, Modifier.size(18.dp), tint = Color.White); Spacer(Modifier.width(8.dp)); Text(label, color = Color.White, fontSize = 13.sp) }
 }
@@ -158,16 +158,16 @@ fun NowPlayingScreen(
 
     Box(
         Modifier.fillMaxSize().graphicsLayer { translationY = shownY.coerceAtLeast(0f); alpha = 1f - (shownY / 1400f).coerceIn(0f, .5f) }
-            .background(Color(0xFF050505))
+            .background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))
     ) {
         Crossfade(track.id, animationSpec = tween(700), label = "bg") { id ->
             Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.4f; scaleY = 1.4f; alpha = 0.5f }.blur(40.dp))
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .5f), Color.Black.copy(alpha = .3f), Color.Black.copy(alpha = .9f)))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Black.copy(alpha = .26f), Color.Black.copy(alpha = .96f)))))
         AuroraGlow(accent, Modifier.fillMaxSize(), animate = playing)
 
         Column(
-            Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 24.dp, vertical = 10.dp).pointerInput(Unit) {
+            Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 22.dp, vertical = 12.dp).pointerInput(Unit) {
                 var tx = 0f; var ty = 0f
                 detectDragGestures(
                     onDragStart = { tx = 0f; ty = 0f; dragging = true },
@@ -191,15 +191,15 @@ fun NowPlayingScreen(
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         NowPlayingBars(playing, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp))
-                        Text("NOW PLAYING", fontSize = 11.sp, letterSpacing = 3.sp, color = Color.White)
+                        Text("NOW PLAYING", fontSize = 10.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Black, color = Color.White)
                     }
-                    Text("Local library", fontSize = 11.sp, color = Color.White.copy(alpha = .7f))
+                    Text("YOUR SOUNDTRACK", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Color.White.copy(alpha = .54f))
                 }
                 EmbossedIconButton(onStudio, Modifier.size(44.dp)) { Icon(Icons.Default.Equalizer, "Audio Studio") }
             }
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val s = minOf(maxWidth, maxHeight) * 0.9f
+                val s = minOf(maxWidth, maxHeight) * 0.88f
                 Box(
                     Modifier.size(s).graphicsLayer {
                         translationX = shownX; rotationZ = shownX / 50f
@@ -211,10 +211,10 @@ fun NowPlayingScreen(
                 ) {
                     listOf(0.84f to 0.30f, 0.92f to 0.50f).forEach { (sc, al) ->
                         Box(Modifier.fillMaxSize().graphicsLayer { scaleX = sc; scaleY = sc; translationY = size.height * (1f - sc) * 1.1f; alpha = al }
-                            .clip(RoundedCornerShape(34.dp)).background(accent))
+                            .clip(RoundedCornerShape(38.dp)).background(Brush.linearGradient(listOf(accent.copy(alpha = .8f), accent.copy(alpha = .22f)))))
                     }
                     Crossfade(track.id, animationSpec = tween(500), label = "art") { id ->
-                        Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().shadow(30.dp, RoundedCornerShape(34.dp), ambientColor = accent, spotColor = accent), 34.dp)
+                        Art(tracks.firstOrNull { it.id == id } ?: track, Modifier.fillMaxSize().shadow(34.dp, RoundedCornerShape(38.dp), ambientColor = accent, spotColor = accent).border(1.dp, Color.White.copy(alpha = .24f), RoundedCornerShape(38.dp)), 38.dp)
                     }
                     Icon(Icons.Default.Favorite, null, Modifier.align(Alignment.Center).size(110.dp).graphicsLayer {
                         val b = burst.value; val k = 0.4f + 0.9f * b; scaleX = k; scaleY = k; alpha = kotlin.math.sin(b * Math.PI).toFloat()
@@ -223,15 +223,15 @@ fun NowPlayingScreen(
             }
 
             Reveal(100) {
-                Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     AnimatedContent(track.id, Modifier.weight(1f), transitionSpec = {
                         (slideInVertically(tween(350)) { it / 2 } + fadeIn(tween(350))) togetherWith (slideOutVertically(tween(250)) { -it / 2 } + fadeOut(tween(250)))
                     }, label = "title") { id ->
                         val t = tracks.firstOrNull { it.id == id } ?: track
                         Column {
-                            Text(t.title, Modifier.basicMarquee(), fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, softWrap = false)
-                            Text("${t.artist} · ${t.album}", color = Color.White.copy(alpha = .85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(playsText(t.playCount), fontSize = 12.sp, color = accent)
+                            Text(t.title, Modifier.basicMarquee(), fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.1).sp, color = Color.White, maxLines = 1, softWrap = false)
+                            Text("${t.artist}  /  ${t.album}", color = Color.White.copy(alpha = .78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(playsText(t.playCount).uppercase(), fontSize = 9.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold, color = accent)
                         }
                     }
                     EmbossedIconButton(onFavorite, Modifier.size(48.dp)) {
@@ -243,7 +243,7 @@ fun NowPlayingScreen(
                 }
             }
             Reveal(160) {
-                Column(Modifier.padding(top = 10.dp)) {
+                Column(Modifier.padding(top = 14.dp)) {
                     WaveSeek(track.id, { prog }, drag, { f -> onSeek((f * duration).toLong()) }, accent, Modifier.fillMaxWidth().height(54.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                         Text(fmt(if (drag.floatValue >= 0f) (drag.floatValue * duration).toLong() else pos), color = Color.White, fontSize = 12.sp)
@@ -276,11 +276,11 @@ fun NowPlayingScreen(
                     }
                     Crossfade(nextTitle, label = "next") { nt ->
                         if (nt != null) Row(
-                            Modifier.padding(top = 10.dp, bottom = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = .08f))
-                                .clickable(onClick = onQueue).padding(horizontal = 14.dp, vertical = 10.dp),
+                            Modifier.padding(top = 12.dp, bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = .14f), Color.White.copy(alpha = .05f))))
+                                .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(16.dp)).clickable(onClick = onQueue).padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("UP NEXT", fontSize = 10.sp, letterSpacing = 2.sp, color = accent)
+                            Text("UP NEXT", fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Black, color = accent)
                             Spacer(Modifier.width(10.dp))
                             Text(nt, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -323,11 +323,11 @@ private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -
     var lyricScale by remember { mutableFloatStateOf(1f) }
     val state = rememberLazyListState()
     LaunchedEffect(current) { if (synced) state.animateScrollToItem((current - 2).coerceAtLeast(0)) }
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f)).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding()) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF17131F), Color(0xF908080D), Color.Black))).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 EmbossedIconButton(onClose, Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown, "Close lyrics") }
-                Text(title, Modifier.weight(1f).padding(horizontal = 12.dp), fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, Modifier.weight(1f).padding(horizontal = 14.dp), fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!lyrics.isNullOrBlank()) {
                     TextButton(onClear) { Text("Remove") }
                     TextButton({ lyricScale = (lyricScale + 0.15f).coerceAtMost(1.6f) }) { Text("A+") }
@@ -337,7 +337,7 @@ private fun LyricsPanel(lyrics: String?, pos: Long, title: String, onClose: () -
             if (lyrics.isNullOrBlank()) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Icon(Icons.Default.Notes, null, Modifier.size(56.dp), tint = Color.White.copy(alpha = .6f))
-                    Text("No lyrics yet", Modifier.padding(top = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("No lyrics yet", Modifier.padding(top = 14.dp), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text("Pick a .lrc (timed) or .txt file from your phone for this song.", Modifier.padding(top = 6.dp, bottom = 18.dp), color = Color.White.copy(alpha = .7f))
                     EmbossedIconButton(onAdd, Modifier.height(48.dp), RoundedCornerShape(24.dp)) { Text("Add lyrics file", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.SemiBold) }
                 }

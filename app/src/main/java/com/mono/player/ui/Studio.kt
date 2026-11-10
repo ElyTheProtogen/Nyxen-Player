@@ -136,8 +136,8 @@ fun Studio() {
         Reveal(0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Audio Studio", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                    Text(if (en) "Effects on · $cur" else "Effects off", fontSize = 13.sp, color = Color.White.copy(alpha = .65f))
+                    Text("SOUND DESIGN", style = MaterialTheme.typography.titleLarge, letterSpacing = 1.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text(if (en) "PROCESSING ACTIVE  /  $cur" else "PROCESSING BYPASSED", fontSize = 10.sp, letterSpacing = 1.2.sp, color = Color.White.copy(alpha = .54f))
                 }
                 EmbossedIconButton({ en = !en; AudioFx.setFxEnabled(en) }, Modifier.size(52.dp).graphicsLayer { alpha = if (en) 1f else 0.5f }) {
                     Icon(Icons.Default.PowerSettingsNew, if (en) "Turn effects off" else "Turn effects on")
@@ -161,7 +161,7 @@ fun Studio() {
         }
         Reveal(120) {
             GlassCard(Modifier.fillMaxWidth()) {
-                Text("Equalizer", fontWeight = FontWeight.SemiBold)
+                Text("EQUALIZER", fontWeight = FontWeight.Black, letterSpacing = 1.6.sp, fontSize = 11.sp, color = LocalAccent.current)
                 EqCurve(anims, lo.toFloat(), hi.toFloat(), LocalAccent.current, Modifier.fillMaxWidth().height(90.dp).padding(vertical = 6.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     for (b in 0 until n) {
@@ -178,12 +178,12 @@ fun Studio() {
                     Knob("Bass boost", bass, en) { bass = it; AudioFx.bassStr = it.toInt(); AudioFx.apply() }
                     Knob("Stereo widening", virt, en) { virt = it; AudioFx.virtStr = it.toInt(); AudioFx.apply() }
                 }
-                Text("Drag a knob up or down. Widening depends on your phone.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(top = 6.dp))
+                Text("Drag a control vertically. Stereo widening depends on your device.", fontSize = 11.sp, color = Color.White.copy(alpha = .52f), modifier = Modifier.padding(top = 6.dp))
             }
         }
         Reveal(240) {
             GlassCard(Modifier.fillMaxWidth()) {
-                Text("Reverb", fontWeight = FontWeight.SemiBold)
+                Text("REVERB SPACE", fontWeight = FontWeight.Black, letterSpacing = 1.6.sp, fontSize = 11.sp, color = LocalAccent.current)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AudioFx.reverbNames.forEachIndexed { i, nm -> FilterChip(rev == i, { rev = i; AudioFx.revPreset = i; AudioFx.apply() }, { Text(nm) }) }
                 }
