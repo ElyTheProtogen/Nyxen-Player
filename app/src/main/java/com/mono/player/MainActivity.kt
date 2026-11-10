@@ -269,6 +269,12 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     }
     fun hasAudioPerm() = ContextCompat.checkSelfPermission(ctx, audioPerm) == PackageManager.PERMISSION_GRANTED
     fun requestScan() { if (hasAudioPerm()) rescan(true) else askPerm = true }
+    fun importOfflinePack() {
+        scope.launch {
+            val added = withContext(Dispatchers.IO) { OfflinePackImporter.addToLibrary(ctx, dao) }
+            msg = if (added > 0) "$added offline tracks added to your library" else "Offline soundscapes are already in your library"
+        }
+    }
     fun wipeAll() { scope.launch {
         c?.run { stop(); clearMediaItems() }
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
