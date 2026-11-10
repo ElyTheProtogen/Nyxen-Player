@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.mono.player.R
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -123,10 +126,11 @@ fun SettingsScreen(
     sleepAt: String, onSleep: (Int) -> Unit,
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
     tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
-    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit
+    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
+    wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean
 ) {
     BackHandler(sub != 0) { onSub(0) }
-    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats")
+    val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats", "Offline art & sound")
     AnimatedContent(sub, transitionSpec = {
         if (targetState > initialState)
             (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300)))
@@ -142,6 +146,7 @@ fun SettingsScreen(
                 0 -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     MenuRow(Icons.Default.Person, profName.ifBlank { "Account" }, profEmail.ifBlank { "Manage your profile" }, 0) { onSub(6) }
                     MenuRow(Icons.Default.Palette, "Appearance", "${Themes.size} themes · ${Themes[themeIdx].name} selected", 40) { onSub(1) }
+                    MenuRow(Icons.Default.Wallpaper, "Offline art & sound", "Wallpapers and original sample tracks", 65) { onSub(8) }
                     MenuRow(Icons.Default.Equalizer, "Audio Studio", "Equalizer, bass, reverb", 90) { onSub(2) }
                     MenuRow(Icons.Default.Speed, "Playback", "Speed, sleep timer, haptics", 140) { onSub(4) }
                     MenuRow(Icons.Default.LibraryMusic, "Library & import", "Auto-import and rescan", 190) { onSub(3) }
@@ -230,6 +235,58 @@ fun SettingsScreen(
                         EmbossedIconButton(onImportFolder, Modifier.height(44.dp), RoundedCornerShape(22.dp)) { Text("Import a folder", Modifier.padding(horizontal = 18.dp)) }
                     }
                     Reveal(140) { Text("Songs you remove from the library come back on the next scan. Files you imported by hand are kept.", style = MaterialTheme.typography.bodySmall) }
+                }
+
+                8 -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Reveal(0) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Text("WALLPAPER COLLECTION", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
+                            Text("Four original Nyxen wallpapers, available fully offline.", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(14.dp))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                val names = listOf("Theme", "Obsidian", "Violet", "Neon", "Aurora")
+                                (0..4).forEach { index ->
+                                    Column(Modifier.width(78.dp).clickable { onWallpaper(index) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Box(Modifier.size(72.dp, 112.dp).clip(RoundedCornerShape(13.dp))
+                                            .border(if (wallpaperIdx == index) 2.dp else 1.dp, if (wallpaperIdx == index) LocalAccent.current else Color.White.copy(.18f), RoundedCornerShape(13.dp))) {
+                                            if (index == 0) {
+                                                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF08080B), Color(0xFF4A4A4A), Color.Black))))
+                                            } else {
+                                                val id = when (index) {
+                                                    1 -> R.drawable.nyxen_wallpaper_01
+                                                    2 -> R.drawable.nyxen_wallpaper_02
+                                                    3 -> R.drawable.nyxen_wallpaper_03
+                                                    else -> R.drawable.nyxen_wallpaper_04
+                                                }
+                                                Image(painterResource(id), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            }
+                                            if (wallpaperIdx == index) Icon(Icons.Default.CheckCircle, "Selected", Modifier.align(Alignment.TopEnd).padding(5.dp).size(18.dp), tint = LocalAccent.current)
+                                        }
+                                        Text(names[index], Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Reveal(90) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Text("OFFLINE SOUNDSCAPES", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
+                            Text("Three original 48-second stereo instrumentals are bundled with Nyxen. Add them to your library and play without internet.", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(12.dp))
+                            listOf("Obsidian Drift · Dark ambient", "Neon Pulse · Electronic ambient", "Aurora Sleep · Atmospheric").forEach { label ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.GraphicEq, null, tint = LocalAccent.current)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(label, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            EmbossedIconButton(onImportSamples, Modifier.fillMaxWidth().height(46.dp), RoundedCornerShape(23.dp)) {
+                                Text(if (samplesImported) "Add any missing sample tracks" else "Add offline tracks to library", fontWeight = FontWeight.Bold)
+                            }
+                            Text("Audio and cover art stay on this device.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
                 6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe, profVerified)
                 7 -> StatsScreen(tracks)
