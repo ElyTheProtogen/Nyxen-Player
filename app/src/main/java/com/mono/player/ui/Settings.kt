@@ -91,7 +91,7 @@ private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, 
                 Text(title, fontWeight = FontWeight.Bold, letterSpacing = (-.1).sp, color = Color.White)
                 Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .54f), maxLines = 1)
             }
-            Icon(Icons.Default.ArrowForwardIos, null, Modifier.size(13.dp), tint = Color.White.copy(alpha = .38f))
+            Icon(Icons.Default.KeyboardArrowRight, null, Modifier.size(13.dp), tint = Color.White.copy(alpha = .38f))
         }
     }
 }@Composable
@@ -105,7 +105,7 @@ private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> 
                 Modifier.size(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
                     .clip(CircleShape).background(Brush.linearGradient(listOf(t.top, t.mid, t.bottom)))
                     .border(if (selected) 3.dp else 1.dp, if (selected) Color.White else Color.White.copy(alpha = .16f), CircleShape)
-                    .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
+                    .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
                 Alignment.Center
             ) {
                 if (selected) Icon(Icons.Default.Check, "Selected theme", tint = Color.White)
