@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("mono", MODE_PRIVATE)
         setContent {
             var themeIdx by remember { mutableIntStateOf(prefs.getInt("theme", 0).coerceIn(0, Themes.lastIndex)) }
+            var wallpaperIdx by remember { mutableIntStateOf(prefs.getInt("wallpaper", 0).coerceIn(0, 4)) }
             var haptics by remember { mutableStateOf(prefs.getBoolean("haptics", true)) }
             var coverMatch by remember { mutableStateOf(prefs.getBoolean("covermatch", true)) }
             var coverAccent by remember { mutableStateOf<Color?>(null) }
