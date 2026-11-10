@@ -346,7 +346,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
             m.addListener(object : Player.Listener {
-                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m); appendSimilarTrack(m) }
+                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; pos = m.currentPosition.coerceAtLeast(0L); item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m); appendSimilarTrack(m) }
                 override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { persistQueue(m) }
                 override fun onPlayerError(error: PlaybackException) { msg = "Couldn't play this file. It may have been moved or deleted." }
                 override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) { prefs.edit().putLong("lastPos", m.currentPosition).apply(); persistQueuePosition(m) } }

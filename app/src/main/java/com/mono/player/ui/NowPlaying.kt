@@ -66,32 +66,68 @@ import com.mono.player.data.Track
 import com.mono.player.fmt
 import com.mono.player.playback.PlayMode
 
-/** Waveform-style seek bar. The bar shapes are decorative (generated from the song id), the progress and seeking are real. */
+/** Stable, softly varying track waveform with a playhead driven by real playback progress. */
 @Composable
 private fun WaveSeek(seed: Long, progress: () -> Float, drag: MutableFloatState, onSeek: (Float) -> Unit, accent: Color, modifier: Modifier) {
     val bars = remember(seed) {
-        val r = java.util.Random(seed)
-        FloatArray(52) { i -> (0.22f + 0.78f * (0.5f + 0.5f * kotlin.math.sin(i * 0.5f + r.nextFloat() * 3f)) * (0.55f + 0.45f * r.nextFloat())).coerceIn(0.18f, 1f) }
+        val random = java.util.Random(seed)
+        val phase = (seed % 997L).toFloat() / 997f * kotlin.math.PI.toFloat()
+        val raw = FloatArray(52) { index ->
+            val slow = kotlin.math.abs(kotlin.math.sin(index * .17f + phase)).toFloat() * .48f
+            val detail = kotlin.math.abs(kotlin.math.sin(index * .37f + phase * 1.31f)).toFloat() * .24f
+            (.18f + slow + detail + random.nextFloat() * .16f).coerceIn(.18f, .94f)
+        }
+        FloatArray(raw.size) { index ->
+            val previous = raw.getOrElse(index - 1) { raw[index] }
+            val next = raw.getOrElse(index + 1) { raw[index] }
+            (previous * .25f + raw[index] * .5f + next * .25f).coerceIn(.18f, .94f)
+        }
     }
     Canvas(
-        modifier.pointerInput(Unit) { detectTapGestures { o -> onSeek((o.x / size.width).coerceIn(0f, 1f)) } }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { o -> drag.floatValue = (o.x / size.width).coerceIn(0f, 1f) },
-                    onDragEnd = { val d = drag.floatValue; drag.floatValue = -1f; if (d >= 0f) onSeek(d) },
-                    onDragCancel = { drag.floatValue = -1f }
-                ) { change, _ -> change.consume(); drag.floatValue = (change.position.x / size.width).coerceIn(0f, 1f) }
+        modifier.pointerInput(Unit) {
+            detectTapGestures { point ->
+                onSeek((point.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f))
             }
-    ) {
-        val n = bars.size; val gap = 3.dp.toPx(); val w = (size.width - gap * (n - 1)) / n
-        val p = if (drag.floatValue >= 0f) drag.floatValue else progress()
-        for (i in 0 until n) {
-            val h = bars[i] * size.height
-            val played = (i + 0.5f) / n <= p
-            drawRoundRect(if (played) Brush.verticalGradient(listOf(Color.White, accent.copy(alpha = .78f))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = .22f), Color.White.copy(alpha = .22f))), Offset(i * (w + gap), (size.height - h) / 2f), Size(w, h), CornerRadius(w / 2))
+        }.pointerInput(Unit) {
+            detectHorizontalDragGestures(
+                onDragStart = { point -> drag.floatValue = (point.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                onDragEnd = { val target = drag.floatValue; drag.floatValue = -1f; if (target >= 0f) onSeek(target) },
+                onDragCancel = { drag.floatValue = -1f }
+            ) { change, _ ->
+                change.consume()
+                drag.floatValue = (change.position.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+            }
         }
-        val head = 3.dp.toPx()
-        drawRoundRect(accent, Offset(p * (size.width - head), 0f), Size(head, size.height), CornerRadius(head / 2))
+    ) {
+        val count = bars.size
+        val gap = 2.5.dp.toPx()
+        val barWidth = (size.width - gap * (count - 1)) / count
+        val p = (if (drag.floatValue >= 0f) drag.floatValue else progress()).coerceIn(0f, 1f)
+        for (index in 0 until count) {
+            val height = bars[index] * size.height
+            val x = index * (barWidth + gap)
+            val y = (size.height - height) / 2f
+            drawRoundRect(
+                Color.White.copy(alpha = .20f),
+                Offset(x, y), Size(barWidth, height), CornerRadius(barWidth / 2f)
+            )
+            val filled = (p * count - index).coerceIn(0f, 1f)
+            if (filled > 0f) {
+                val filledWidth = barWidth * filled
+                drawRoundRect(
+                    Brush.verticalGradient(listOf(Color.White, accent.copy(alpha = .86f))),
+                    Offset(x, y), Size(filledWidth, height),
+                    CornerRadius(minOf(filledWidth, height) / 2f)
+                )
+            }
+        }
+        val headWidth = 3.dp.toPx()
+        val headX = (p * size.width - headWidth / 2f).coerceIn(0f, size.width - headWidth)
+        drawRoundRect(
+            accent.copy(alpha = .28f), Offset(headX - 2.dp.toPx(), 0f),
+            Size(headWidth + 4.dp.toPx(), size.height), CornerRadius(headWidth)
+        )
+        drawRoundRect(accent, Offset(headX, 0f), Size(headWidth, size.height), CornerRadius(headWidth / 2f))
     }
 }
 
@@ -147,7 +183,13 @@ fun NowPlayingScreen(
     val shownX by animateFloatAsState(if (dragging) dragX else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioMediumBouncy), label = "player-swipe-x")
     val shownY by animateFloatAsState(if (dragging) dragY else 0f, if (dragging) snap<Float>() else spring<Float>(Spring.DampingRatioLowBouncy), label = "player-swipe-y")
     val artScale by animateFloatAsState(if (playing) 1f else .97f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "player-art-scale")
-    val progress by animateFloatAsState((pos.toFloat() / duration.coerceAtLeast(1L)).coerceIn(0f, 1f), tween(180, easing = LinearEasing), label = "player-progress")
+    val progress by key(track.id) {
+        animateFloatAsState(
+            (pos.toFloat() / duration.coerceAtLeast(1L)).coerceIn(0f, 1f),
+            if (playing) tween(500, easing = LinearEasing) else snap<Float>(),
+            label = "player-progress"
+        )
+    }
     val drag = remember { mutableFloatStateOf(-1f) }
     val ring = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
