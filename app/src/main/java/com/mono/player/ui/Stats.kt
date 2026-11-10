@@ -27,8 +27,8 @@ private fun BigStat(label: String, value: Long, modifier: Modifier) {
     val a = remember { Animatable(0f) }
     LaunchedEffect(value) { a.animateTo(value.toFloat(), tween(900, easing = FastOutSlowInEasing)) }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("${a.value.toLong()}", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = (-1).sp)
-        Text(label.uppercase(), fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .58f))
+        Text("${a.value.toLong()}", fontSize = 36.sp, fontWeight = FontWeight.Black, color = Color.White, letterSpacing = (-1.5).sp)
+        Text(label.uppercase(), fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .48f))
     }
 }
 
@@ -61,11 +61,11 @@ fun StatsScreen(tracks: List<Track>) {
     val topGenre = remember(tracks) {
         tracks.filter { it.playCount > 0 && !it.genre.startsWith("Unknown") }.groupBy { it.genre }.maxByOrNull { e -> e.value.sumOf { t -> t.playCount } }?.key
     }
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Reveal(0) {
             Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 2.dp)) {
-                Text("YOUR LISTENING", fontSize = 9.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
-                Text("The numbers behind your taste", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Black)
+                Text("LISTENING INTELLIGENCE  /  01", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
+                Text("Your sound,\nyour story.", style = MaterialTheme.typography.headlineLarge, lineHeight = 36.sp, color = Color.White, fontWeight = FontWeight.Black)
             }
         }
         Reveal(0) {
@@ -82,7 +82,7 @@ fun StatsScreen(tracks: List<Track>) {
         } else {
             Reveal(80) {
                 GlassCard(Modifier.fillMaxWidth()) {
-                    Text("TOP SONGS", fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, fontSize = 11.sp, color = Color.White)
+                    Text("TOP SONGS", fontWeight = FontWeight.Black, letterSpacing = 1.8.sp, fontSize = 10.sp, color = LocalAccent.current)
                     topSongs.forEachIndexed { i, t -> BarRow("${i + 1}. ${t.title}", t.playCount, topSongs.first().playCount) }
                 }
             }
