@@ -127,7 +127,8 @@ fun SettingsScreen(
     haptics: Boolean, onHaptics: (Boolean) -> Unit, speed: Float, onSpeed: (Float) -> Unit,
     sleepAt: String, onSleep: (Int) -> Unit,
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
-    tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean
+    tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
+    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit
 ) {
     BackHandler(sub != 0) { onSub(0) }
     val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats")
@@ -173,6 +174,19 @@ fun SettingsScreen(
                 }
                 2 -> Studio()
                 4 -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Reveal(0) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("Resume playback on launch", fontWeight = FontWeight.SemiBold); Text("Automatically continue your last song and position", style = MaterialTheme.typography.bodySmall) }
+                                Switch(autoResume, onAutoResume)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("Keep screen awake", fontWeight = FontWeight.SemiBold); Text("Prevent the display from sleeping while music plays", style = MaterialTheme.typography.bodySmall) }
+                                Switch(keepAwake, onKeepAwake)
+                            }
+                        }
+                    }
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Text("Playback speed", fontWeight = FontWeight.SemiBold)
