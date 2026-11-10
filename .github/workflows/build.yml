@@ -19,8 +19,20 @@ jobs:
         with:
           gradle-version: 8.9
 
+      # Fixed signing key, so the app's SHA-1 never changes (Google sign-in depends on it).
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/nyxen.jks"; fi
+
       - name: Build release APK
         run: gradle assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/nyxen.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Rename APK
         run: mv app/build/outputs/apk/release/*.apk NyxenPlayer.apk
