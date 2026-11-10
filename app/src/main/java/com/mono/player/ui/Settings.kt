@@ -72,56 +72,48 @@ val Themes = listOf(
 
 @Composable
 private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, onClick: () -> Unit) {
-    val a = LocalAccent.current
-    val shape = RoundedCornerShape(22.dp)
+    val accent = LocalAccent.current
+    val shape = RoundedCornerShape(20.dp)
     Reveal(delay) {
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Brush.linearGradient(listOf(Color(0xD51D1B25), Color(0xA908080C))))
-                .border(1.dp, Brush.linearGradient(listOf(a.copy(alpha = .55f), Color.White.copy(alpha = .08f))), shape)
-                .clickable(onClick = onClick).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).padding(horizontal = 16.dp, vertical = 15.dp),
+            Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(shape)
+                .background(Color(0xD91A1A22))
+                .border(1.dp, Color.White.copy(alpha = .09f), shape)
+                .clickable(onClick = onClick).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(48.dp).shadow(10.dp, CircleShape, ambientColor = a, spotColor = a).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(lerp(a, Color.White, .2f), lerp(a, Color.Black, .5f)))), Alignment.Center) {
-                Icon(icon, null, Modifier.size(21.dp), tint = Color.White)
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = .16f)), Alignment.Center) {
+                Icon(icon, null, Modifier.size(20.dp), tint = accent)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, letterSpacing = .1.sp)
-                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .62f), maxLines = 1)
+                Text(title, fontWeight = FontWeight.Bold, letterSpacing = (-.1).sp, color = Color.White)
+                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .54f), maxLines = 1)
             }
-            Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = .55f))
+            Icon(Icons.Default.ArrowForwardIos, null, Modifier.size(13.dp), tint = Color.White.copy(alpha = .38f))
         }
     }
-}
-
-@Composable
+}@Composable
 private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val hapticsOn = LocalHaptics.current
-    val sc by animateFloatAsState(if (selected) 1.12f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "sc")
-    val ring by animateFloatAsState(if (selected) 1f else 0f, tween(300), label = "ring")
+    val scale by animateFloatAsState(if (selected) 1.08f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "theme-scale")
     Reveal(delay) {
         Column(Modifier.width(78.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(66.dp).graphicsLayer { scaleX = sc; scaleY = sc; rotationZ = if (selected) 3f else 0f }
-                    .shadow((12 * ring).dp, CircleShape, ambientColor = t.accent, spotColor = t.accent).clip(CircleShape)
-                    .background(Brush.verticalGradient(listOf(t.top, t.mid, t.bottom))).background(Color.Black.copy(alpha = t.scrim))
-                    .border((1.5f + 2.5f * ring).dp, Color.White.copy(alpha = .16f + .84f * ring), CircleShape)
-                    .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
+                Modifier.size(58.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+                    .clip(CircleShape).background(Brush.linearGradient(listOf(t.top, t.mid, t.bottom)))
+                    .border(if (selected) 3.dp else 1.dp, if (selected) Color.White else Color.White.copy(alpha = .16f), CircleShape)
+                    .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() },
                 Alignment.Center
             ) {
-                androidx.compose.animation.AnimatedVisibility(selected, enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(), exit = scaleOut() + fadeOut()) {
-                    Icon(Icons.Default.Check, "Selected theme", tint = Color.White)
-                }
+                if (selected) Icon(Icons.Default.Check, "Selected theme", tint = Color.White)
             }
-            Text(t.name, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Text(t.name, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else Color.White.copy(alpha = .62f), maxLines = 1)
         }
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
+}@Composable
 fun SettingsScreen(
     sub: Int, onSub: (Int) -> Unit, themeIdx: Int, onTheme: (Int) -> Unit,
     autoImport: Boolean, onAuto: (Boolean) -> Unit, scanning: Boolean, onRescan: () -> Unit,
@@ -140,9 +132,9 @@ fun SettingsScreen(
             (slideInHorizontally(tween(300)) { -it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300)))
     }, label = "settings") { s ->
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 14.dp, start = 2.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (s != 0) { EmbossedIconButton({ onSub(0) }, Modifier.size(44.dp)) { Icon(Icons.Default.ArrowBack, "Back to settings") }; Spacer(Modifier.width(12.dp)) }
-                if (titles[s].isNotBlank()) Text(titles[s], style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
+                if (titles[s].isNotBlank()) Text(titles[s].uppercase(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
             }
             when (s) {
                 0 -> Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -167,7 +159,7 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Reveal(30) { Text("CHOOSE YOUR ATMOSPHERE", style = MaterialTheme.typography.labelLarge, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .78f)) }
+                    Reveal(30) { Text("COLOR SYSTEM", style = MaterialTheme.typography.labelLarge, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .62f)) }
                     Spacer(Modifier.height(12.dp))
                     FlowRow(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Arrangement.spacedBy(18.dp), maxItemsInEachRow = 4) {
                         Themes.forEachIndexed { i, t -> ThemeOrb(t, i == themeIdx, i * 45) { onTheme(i) } }
