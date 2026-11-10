@@ -7,7 +7,7 @@ val keystoreFile: File? = System.getenv("KEYSTORE_PATH")?.let { File(it) }?.take
 
 android {
     namespace = "com.mono.player"; compileSdk = 35
-    defaultConfig { applicationId = "com.mono.player"; minSdk = 26; targetSdk = 35; versionCode = 3; versionName = "1.2"
+    defaultConfig { applicationId = "com.mono.player"; minSdk = 26; targetSdk = 35; versionCode = 4; versionName = "1.3"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"") }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
@@ -29,6 +29,12 @@ android {
         }
     }
 }
+
+val generateOfflinePack by tasks.registering(Exec::class) {
+    commandLine("python3", rootProject.file("tools/generate_offline_pack.py"))
+}
+tasks.named("preBuild").configure { dependsOn(generateOfflinePack) }
+
 dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
