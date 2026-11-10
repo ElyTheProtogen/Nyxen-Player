@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import com.mono.player.GoogleAuth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -95,13 +97,18 @@ private fun FeatureCard(icon: ImageVector, title: String, text: String) {
 
 /** Three-step welcome: hello, what the app does, then a profile with a required Gmail address (stored only on this device). */
 @Composable
-fun WelcomeScreen(initialName: String, initialEmail: String, onDone: (String, String) -> Unit) {
+fun WelcomeScreen(
+    initialName: String, initialEmail: String, googleEnabled: Boolean,
+    onGoogle: suspend () -> Result<Pair<String, String>>, onDone: (String, String, Boolean) -> Unit
+) {
     val accent = LocalAccent.current
     val scope = rememberCoroutineScope()
     val pager = rememberPagerState(if (initialName.isNotBlank()) 2 else 0) { 3 }
     var name by remember { mutableStateOf(initialName) }
     var email by remember { mutableStateOf(initialEmail) }
     var tried by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var gError by remember { mutableStateOf<String?>(null) }
     val ok = isGmail(email)
     val breathe = rememberInfiniteTransition(label = "breathe")
     val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
@@ -130,17 +137,40 @@ fun WelcomeScreen(initialName: String, initialEmail: String, onDone: (String, St
                         }
                         else -> {
                             Text("Create your profile", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
-                            Text("A Gmail address is required", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
-                            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
-                            Spacer(Modifier.height(10.dp))
-                            OutlinedTextField(
-                                email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address") }, singleLine = true,
-                                leadingIcon = { Icon(Icons.Default.Email, null) },
-                                trailingIcon = { AnimatedVisibility(ok, enter = fadeIn() + scaleIn(), exit = fadeOut()) { Icon(Icons.Default.CheckCircle, "Valid Gmail address", tint = Color(0xFF4CD964)) } },
-                                isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
-                            )
-                            Text("Saved only on this device. We do not sign in to Google or send your address anywhere.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                            if (googleEnabled) {
+                                Text("Sign in with your Google (Gmail) account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
+                                Box(
+                                    Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
+                                        scope.launch {
+                                            busy = true; gError = null
+                                            onGoogle().onSuccess { (n, e) -> if (isGmail(e)) onDone(n.ifBlank { "Friend" }, e, true) else gError = "Please choose a @gmail.com account." }
+                                                .onFailure { gError = GoogleAuth.describe(it) }
+                                            busy = false
+                                        }
+                                    },
+                                    Alignment.Center
+                                ) {
+                                    if (busy) CircularProgressIndicator(Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    else Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Email, null, tint = Color.Black); Spacer(Modifier.width(10.dp))
+                                        Text("Continue with Google", color = Color.Black, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                gError?.let { Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp)) }
+                                Text("Google is only used to confirm your Gmail address. Nothing is uploaded.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+                            } else {
+                                Text("A Gmail address is required", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+                                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedTextField(
+                                    email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address (not verified)") }, singleLine = true,
+                                    leadingIcon = { Icon(Icons.Default.Email, null) },
+                                    trailingIcon = { AnimatedVisibility(ok, enter = fadeIn() + scaleIn(), exit = fadeOut()) { Icon(Icons.Default.CheckCircle, "Valid Gmail address", tint = Color(0xFF4CD964)) } },
+                                    isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
+                                )
+                                Text("Google sign-in is not set up in this build, so this address is only checked for format.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                            }
                         }
                     }
                 }
@@ -152,8 +182,8 @@ fun WelcomeScreen(initialName: String, initialEmail: String, onDone: (String, St
                         Box(Modifier.height(8.dp).width(w).clip(CircleShape).background(if (pager.currentPage == i) Color.White else Color.White.copy(alpha = .3f)))
                     }
                 }
-                EmbossedIconButton(
-                    { if (pager.currentPage < 2) scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } else { tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim()) } },
+                if (pager.currentPage < 2 || !googleEnabled) EmbossedIconButton(
+                    { if (pager.currentPage < 2) scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } else { tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim(), false) } },
                     Modifier.height(52.dp).widthIn(min = 140.dp).graphicsLayer { alpha = if (pager.currentPage < 2 || ok) 1f else 0.55f }, RoundedCornerShape(26.dp)
                 ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
             }

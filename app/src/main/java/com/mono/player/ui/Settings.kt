@@ -127,7 +127,7 @@ fun SettingsScreen(
     haptics: Boolean, onHaptics: (Boolean) -> Unit, speed: Float, onSpeed: (Float) -> Unit,
     sleepAt: String, onSleep: (Int) -> Unit,
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
-    tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit
+    tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean
 ) {
     BackHandler(sub != 0) { onSub(0) }
     val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats")
@@ -222,7 +222,7 @@ fun SettingsScreen(
                     }
                     Reveal(140) { Text("Songs you remove from the library come back on the next scan. Files you imported by hand are kept.", style = MaterialTheme.typography.bodySmall) }
                 }
-                6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe)
+                6 -> AccountScreen(profName, profEmail, onProfile, onSignOut, onWipe, profVerified)
                 7 -> StatsScreen(tracks)
                 else -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     Reveal(0) {
@@ -240,7 +240,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun AccountScreen(name: String, email: String, onSave: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit) {
+private fun AccountScreen(name: String, email: String, onSave: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit, verified: Boolean) {
     val a = LocalAccent.current
     val scope = rememberCoroutineScope()
     var n by remember { mutableStateOf(name) }
@@ -259,7 +259,7 @@ private fun AccountScreen(name: String, email: String, onSave: (String, String) 
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text(name.ifBlank { "Guest" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(email.ifBlank { "No Gmail added" }, style = MaterialTheme.typography.bodySmall)
+                        Text((if (verified) "✓ " else "") + email.ifBlank { "No Gmail added" }, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -268,7 +268,7 @@ private fun AccountScreen(name: String, email: String, onSave: (String, String) 
             GlassCard(Modifier.fillMaxWidth()) {
                 OutlinedTextField(n, { n = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(e, { e = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address") }, singleLine = true,
+                OutlinedTextField(e, { e = it }, Modifier.fillMaxWidth(), label = { Text(if (verified) "Gmail (verified with Google)" else "Gmail address") }, singleLine = true, readOnly = verified,
                     isError = err && !isGmail(e), supportingText = { if (err && !isGmail(e)) Text("Enter a valid @gmail.com address") })
                 Spacer(Modifier.height(12.dp))
                 EmbossedIconButton({ if (n.isNotBlank() && isGmail(e)) { onSave(n.trim(), e.trim()); saved = true; err = false; scope.launch { delay(1500); saved = false } } else err = true }, Modifier.fillMaxWidth().height(48.dp), RoundedCornerShape(24.dp)) {
