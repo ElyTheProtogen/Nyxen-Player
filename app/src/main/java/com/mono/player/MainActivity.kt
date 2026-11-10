@@ -724,7 +724,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
                         { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
-                        { profName = ""; profEmail = ""; profVerified = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
+                        { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
                         keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() })
