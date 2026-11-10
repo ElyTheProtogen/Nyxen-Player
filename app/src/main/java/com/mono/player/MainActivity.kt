@@ -549,9 +549,53 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         }
                         val longList = remember(tracks) { tracks.filter { it.durationMs >= 5 * 60_000L }.sortedByDescending { it.durationMs }.take(100) }
                         val neverList = remember(tracks) { tracks.filter { it.playCount == 0 }.take(100) }
-                        val smartMap = remember(mostList, recentList, weekList, lateList, longList, neverList) {
-                            linkedMapOf(-1L to ("Most replayed" to mostList), -2L to ("Recently played" to recentList), -3L to ("Added this week" to weekList),
-                                -4L to ("Late night plays" to lateList), -5L to ("Long songs" to longList), -6L to ("Never played" to neverList))
+                        val smartMap = remember(tracks, mostList, recentList, weekList, lateList, longList, neverList) {
+                            val now = System.currentTimeMillis()
+                            val day = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                            val week = now - 7L * 24 * 60 * 60 * 1000
+                            val month = now - 30L * 24 * 60 * 60 * 1000
+                            fun byLastPlayed(test: (java.util.Calendar) -> Boolean) = tracks.filter { t ->
+                                t.lastPlayed > 0 && test(java.util.Calendar.getInstance().apply { timeInMillis = t.lastPlayed })
+                            }.sortedByDescending { it.lastPlayed }
+                            fun byAdded(test: (java.util.Calendar) -> Boolean) = tracks.filter { t ->
+                                test(java.util.Calendar.getInstance().apply { timeInMillis = t.addedAt })
+                            }.sortedByDescending { it.addedAt }
+                            linkedMapOf(
+                                -1L to ("Most replayed" to mostList),
+                                -2L to ("Recently played" to recentList),
+                                -3L to ("Added this week" to weekList),
+                                -4L to ("Late night plays" to lateList),
+                                -5L to ("Long songs" to longList),
+                                -6L to ("Never played" to neverList),
+                                -7L to ("Added today" to byAdded { it.timeInMillis >= day }),
+                                -8L to ("Added this month" to byAdded { it.timeInMillis >= month }),
+                                -9L to ("Played today" to tracks.filter { it.lastPlayed >= day }.sortedByDescending { it.lastPlayed }),
+                                -10L to ("Played this week" to tracks.filter { it.lastPlayed >= week }.sortedByDescending { it.lastPlayed }),
+                                -11L to ("Played this month" to tracks.filter { it.lastPlayed >= month }.sortedByDescending { it.lastPlayed }),
+                                -12L to ("Forgotten tracks" to tracks.filter { it.lastPlayed > 0 && it.lastPlayed < month }.sortedBy { it.lastPlayed }),
+                                -13L to ("Short tracks" to tracks.filter { it.durationMs in 1L until 180_000L }.sortedBy { it.durationMs }),
+                                -14L to ("Medium tracks" to tracks.filter { it.durationMs in 180_000L until 300_000L }.sortedBy { it.durationMs }),
+                                -15L to ("Epic tracks" to tracks.filter { it.durationMs >= 10 * 60_000L }.sortedByDescending { it.durationMs }),
+                                -16L to ("One-play wonders" to tracks.filter { it.playCount == 1 }.sortedByDescending { it.lastPlayed }),
+                                -17L to ("Favorite tracks" to tracks.filter { it.favorite }.sortedByDescending { it.lastPlayed }),
+                                -18L to ("Non-favorites" to tracks.filter { !it.favorite }.sortedByDescending { it.playCount }),
+                                -19L to ("Unknown artists" to tracks.filter { it.artist.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -20L to ("Unknown albums" to tracks.filter { it.album.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -21L to ("No genre tagged" to tracks.filter { it.genre.isBlank() || it.genre.startsWith("Unknown", true) }.sortedBy { it.title }),
+                                -22L to ("Morning sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 5..11 }),
+                                -23L to ("Afternoon sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 12..16 }),
+                                -24L to ("Evening sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 17..21 }),
+                                -25L to ("Night sessions" to byLastPlayed { it.get(java.util.Calendar.HOUR_OF_DAY) in 22..23 || it.get(java.util.Calendar.HOUR_OF_DAY) in 0..4 }),
+                                -26L to ("Weekend additions" to byAdded { it.get(java.util.Calendar.DAY_OF_WEEK) in setOf(java.util.Calendar.SATURDAY, java.util.Calendar.SUNDAY) }),
+                                -27L to ("Unplayed short tracks" to tracks.filter { it.playCount == 0 && it.durationMs in 1L until 180_000L }),
+                                -28L to ("Unplayed long tracks" to tracks.filter { it.playCount == 0 && it.durationMs >= 5 * 60_000L }),
+                                -29L to ("Most recent favorites" to tracks.filter { it.favorite }.sortedByDescending { it.addedAt }),
+                                -30L to ("Recently discovered" to tracks.sortedByDescending { it.addedAt }.take(30)),
+                                -31L to ("Least played" to tracks.filter { it.playCount > 0 }.sortedBy { it.playCount }.take(100))
+                            )
                         }
                         AnimatedContent(openPlId, transitionSpec = {
                             if (targetState != null) (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(200)))
