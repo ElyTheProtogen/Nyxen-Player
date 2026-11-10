@@ -257,6 +257,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var speed by remember { mutableFloatStateOf(prefs.getFloat("speed", 1f)) }
     var autoResume by remember { mutableStateOf(prefs.getBoolean("autoResume", false)) }
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keepAwake", false)) }
+    var pauseOnDisconnect by remember { mutableStateOf(prefs.getBoolean("pauseOnDisconnect", true)) }
+    var sleepFade by remember { mutableStateOf(prefs.getBoolean("sleepFade", true)) }
     var sleepEnd by remember { mutableLongStateOf(0L) }
     var restored by remember { mutableStateOf(false) }
     var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
@@ -300,6 +302,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
+        pauseOnDisconnect = true; sleepFade = true
         profName = ""; profEmail = ""; profVerified = false; guestMode = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
@@ -326,13 +329,14 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     LaunchedEffect(playing, c) { var n = 0; while (playing) { val p = c?.currentPosition ?: 0; val dd = c?.duration ?: 0L; miniProg = if (dd > 0) (p.toFloat() / dd).coerceIn(0f, 1f) else 0f; if (full) pos = p; if (++n % 10 == 0) prefs.edit().putLong("lastPos", p).apply(); delay(500) }; pos = c?.currentPosition ?: pos }
 
     LaunchedEffect(msg) { if (msg != null) { delay(3500); msg = null } }
-    LaunchedEffect(sleepEnd) {
+    LaunchedEffect(sleepEnd, sleepFade) {
         if (sleepEnd > 0) {
             try {
-                val fade = 20_000L
-                delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
-                val steps = 40
-                for (k in 1..steps) { c?.volume = 1f - k / steps.toFloat(); delay(fade / steps) }
+                if (sleepFade) {
+                    val fade = 20_000L
+                    delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
+                    for (k in 1..40) { c?.volume = 1f - k / 40f; delay(fade / 40) }
+                } else delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0))
                 c?.pause(); sleepEnd = 0L; msg = "Sleep timer finished"
             } finally { c?.volume = 1f }
         }
@@ -776,7 +780,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
-                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont)
+                        keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont,
+                        pauseOnDisconnect, { pauseOnDisconnect = it; prefs.edit().putBoolean("pauseOnDisconnect", it).apply() }, sleepFade, { sleepFade = it; prefs.edit().putBoolean("sleepFade", it).apply() })
                 }
             }
             }

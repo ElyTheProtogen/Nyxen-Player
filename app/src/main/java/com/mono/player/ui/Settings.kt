@@ -153,7 +153,8 @@ fun SettingsScreen(
     tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
     autoResume: Boolean, onAutoResume: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
     wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean,
-    buttonSounds: Boolean, onButtonSounds: (Boolean) -> Unit, customFontName: String, onImportFont: () -> Unit
+    buttonSounds: Boolean, onButtonSounds: (Boolean) -> Unit, customFontName: String, onImportFont: () -> Unit,
+    pauseOnDisconnect: Boolean, onPauseOnDisconnect: (Boolean) -> Unit, sleepFade: Boolean, onSleepFade: (Boolean) -> Unit
 ) {
     BackHandler(sub != 0) { onSub(0) }
     val titles = listOf("Settings", "Appearance", "", "Library & import", "Playback", "About", "Account", "Listening stats", "Offline art & sound", "Fonts & custom themes")
@@ -212,6 +213,14 @@ fun SettingsScreen(
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("PAUSE WHEN HEADPHONES DISCONNECT", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Pause when wired or Bluetooth audio disconnects", style = MaterialTheme.typography.bodySmall) }
+                                Switch(pauseOnDisconnect, onPauseOnDisconnect)
+                            }
+                        }
+                    }
+                    Reveal(0) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) { Text("RESUME PLAYBACK ON LAUNCH", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Automatically continue your last song and position", style = MaterialTheme.typography.bodySmall) }
                                 Switch(autoResume, onAutoResume)
                             }
@@ -234,7 +243,11 @@ fun SettingsScreen(
                         GlassCard(Modifier.fillMaxWidth()) {
                             Text("SLEEP TIMER", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(0, 15, 30, 45, 60).forEach { m -> AssistChip({ onSleep(m) }, { Text(if (m == 0) "Off" else "$m min") }) }
+                                listOf(0, 5, 15, 30, 45, 60, 90).forEach { m -> AssistChip({ onSleep(m) }, { Text(if (m == 0) "Off" else "$m min") }) }
+                            }
+                            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("FADE OUT BEFORE STOPPING", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Gradually lower the volume during the final 20 seconds", style = MaterialTheme.typography.bodySmall) }
+                                Switch(sleepFade, onSleepFade)
                             }
                             AnimatedVisibility(sleepAt.isNotBlank()) { Text("Music stops at $sleepAt", style = MaterialTheme.typography.bodySmall) }
                         }
