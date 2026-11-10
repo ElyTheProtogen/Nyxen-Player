@@ -88,7 +88,7 @@ private fun WaveSeek(seed: Long, progress: () -> Float, drag: MutableFloatState,
         for (i in 0 until n) {
             val h = bars[i] * size.height
             val played = (i + 0.5f) / n <= p
-            drawRoundRect(if (played) Brush.verticalGradient(listOf(Color.White, accent.copy(alpha = .78f))) else Color.White.copy(alpha = .22f), Offset(i * (w + gap), (size.height - h) / 2f), Size(w, h), CornerRadius(w / 2))
+            drawRoundRect(if (played) Brush.verticalGradient(listOf(Color.White, accent.copy(alpha = .78f))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = .22f), Color.White.copy(alpha = .22f))), Offset(i * (w + gap), (size.height - h) / 2f), Size(w, h), CornerRadius(w / 2))
         }
         val head = 3.dp.toPx()
         drawRoundRect(accent, Offset(p * (size.width - head), 0f), Size(head, size.height), CornerRadius(head / 2))
