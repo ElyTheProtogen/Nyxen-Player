@@ -185,7 +185,8 @@ fun HomeHeader(name: String, songs: Int, onAvatar: () -> Unit) {
     Reveal(0) {
         Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("YOUR SOUND. YOUR SPACE.", fontSize = 9.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Bold, color = accent)\n                Text(greet, Modifier.padding(top = 5.dp), fontSize = 13.sp, color = Color.White.copy(alpha = .62f))
+                Text("YOUR SOUND. YOUR SPACE.", fontSize = 9.sp, letterSpacing = 2.2.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text(greet, Modifier.padding(top = 5.dp), fontSize = 13.sp, color = Color.White.copy(alpha = .62f))
                 Text(name.ifBlank { "Listener" }, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(accent))
@@ -251,7 +252,12 @@ fun AlbumCard(t: Track, current: Boolean, playing: Boolean, onClick: () -> Unit)
 
 @Composable
 fun Carousel(title: String, list: List<Track>, curId: Long?, playing: Boolean, onPlay: (Int) -> Unit) {
-    Column(Modifier.padding(top = 24.dp)) {\n        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {\n            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)\n            Text("${list.size} TRACKS", fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)\n        }\n        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.padding(top = 24.dp)) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
+            Text("${list.size} TRACKS", fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(list.size, key = { list[it].id }) { i -> AlbumCard(list[i], list[i].id == curId, playing) { onPlay(i) } }
         }
     }
@@ -266,7 +272,8 @@ fun GroupCard(name: String, count: Int, cover: Track?, index: Int, onClick: () -
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "grp")
-    val shape = RoundedCornerShape(26.dp)\n    Box(
+    val shape = RoundedCornerShape(26.dp)
+    Box(
         Modifier.fillMaxWidth().aspectRatio(1f).graphicsLayer {
             val v = a.value; alpha = v; translationY = (1f - v) * 60f; scaleX = (0.9f + 0.1f * v) * sc; scaleY = (0.9f + 0.1f * v) * sc
         }.shadow(8.dp, shape, ambientColor = accent, spotColor = accent).clip(shape).clickable(src, null, onClick = onClick)
@@ -400,7 +407,8 @@ fun QuickTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, o
     val sc by animateFloatAsState(if (pressed) 0.95f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "qt")
     val shape = RoundedCornerShape(18.dp)
     Row(
-        modifier.height(60.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Brush.horizontalGradient(listOf(Color(0xC51A1920), Color(0xA808080B))))\n            .border(1.dp, Color.White.copy(alpha = .14f), shape).clickable(src, null, onClick = onClick),
+        modifier.height(60.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape).background(Brush.horizontalGradient(listOf(Color(0xC51A1920), Color(0xA808080B))))
+            .border(1.dp, Color.White.copy(alpha = .14f), shape).clickable(src, null, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(60.dp).background(Brush.linearGradient(listOf(lerp(accent, Color.White, .15f), lerp(accent, Color.Black, .5f)))), Alignment.Center) {
