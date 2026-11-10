@@ -131,7 +131,7 @@ fun FloatingNav(selected: Int, onSelect: (Int) -> Unit) {
                     .clip(CircleShape)
                     .background(if (sel) accent else Color.Transparent)
                     .clickable {
-                        if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSelect(i)
                     },
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
