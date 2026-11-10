@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -113,7 +114,8 @@ private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> 
             Text(t.name, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall, color = if (selected) Color.White else Color.White.copy(alpha = .62f), maxLines = 1)
         }
     }
-}@Composable
+}@OptIn(ExperimentalLayoutApi::class)
+@Composable
 fun SettingsScreen(
     sub: Int, onSub: (Int) -> Unit, themeIdx: Int, onTheme: (Int) -> Unit,
     autoImport: Boolean, onAuto: (Boolean) -> Unit, scanning: Boolean, onRescan: () -> Unit,
