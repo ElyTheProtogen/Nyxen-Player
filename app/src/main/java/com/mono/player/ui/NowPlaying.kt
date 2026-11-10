@@ -119,9 +119,15 @@ private fun PlayOrb(playing: Boolean, ring: Animatable<Float, AnimationVector1D>
 @Composable
 private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) .94f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "action-pill-press")
     Row(
-        Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).clip(shape).background(Color.White.copy(alpha = .10f)).border(1.dp, Color.White.copy(alpha = .18f), shape)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+        Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+            .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+            .clip(shape).background(Color.White.copy(alpha = .10f)).border(1.dp, Color.White.copy(alpha = .18f), shape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) { Icon(icon, null, Modifier.size(18.dp), tint = Color.White); Spacer(Modifier.width(8.dp)); Text(label, color = Color.White, fontSize = 13.sp) }
 }
