@@ -90,7 +90,7 @@ private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, 
                 Text(title, fontWeight = FontWeight.Bold, letterSpacing = .1.sp)
                 Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .62f), maxLines = 1)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = Color.White.copy(alpha = .55f))
+            Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White.copy(alpha = .55f))
         }
     }
 }
