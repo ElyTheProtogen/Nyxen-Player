@@ -258,6 +258,9 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var autoResume by remember { mutableStateOf(prefs.getBoolean("autoResume", false)) }
     var rememberQueue by remember { mutableStateOf(prefs.getBoolean("rememberQueue", true)) }
     val rememberQueueLatest by rememberUpdatedState(rememberQueue)
+    var autoplaySimilar by remember { mutableStateOf(prefs.getBoolean("autoplaySimilar", false)) }
+    val autoplaySimilarLatest by rememberUpdatedState(autoplaySimilar)
+    val latestTracks by rememberUpdatedState(tracks)
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keepAwake", false)) }
     var pauseOnDisconnect by remember { mutableStateOf(prefs.getBoolean("pauseOnDisconnect", true)) }
     var sleepFade by remember { mutableStateOf(prefs.getBoolean("sleepFade", true)) }
@@ -304,7 +307,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
-        pauseOnDisconnect = true; sleepFade = true
+        rememberQueue = true; autoplaySimilar = false; pauseOnDisconnect = true; sleepFade = true
         profName = ""; profEmail = ""; profVerified = false; guestMode = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
@@ -323,13 +326,27 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
             .putInt("savedQueueIndex", player.currentMediaItemIndex.coerceAtLeast(0))
             .putLong("savedQueuePosition", player.currentPosition.coerceAtLeast(0L)).apply()
     }
+    fun appendSimilarTrack(player: Player) {
+        if (!autoplaySimilarLatest || player.mediaItemCount == 0 || player.currentMediaItemIndex != player.mediaItemCount - 1) return
+        val currentId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val current = latestTracks.firstOrNull { it.id == currentId } ?: return
+        val queued = mutableSetOf<Long>()
+        for (index in 0 until player.mediaItemCount) player.getMediaItemAt(index).mediaId.toLongOrNull()?.let { queued.add(it) }
+        val candidates = latestTracks.filter { it.id !in queued }
+        val matches = candidates.filter { candidate ->
+            (current.artist.isNotBlank() && candidate.artist.equals(current.artist, ignoreCase = true)) ||
+                (current.genre.isNotBlank() && candidate.genre.equals(current.genre, ignoreCase = true))
+        }
+        val next = (matches.ifEmpty { candidates }).shuffled().firstOrNull() ?: return
+        player.addMediaItem(mi(next))
+    }
     LaunchedEffect(Unit) {
         
         val f = MediaController.Builder(ctx, SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))).buildAsync()
         f.addListener({
             val m = f.get(); c = m; curId = m.currentMediaItem?.mediaId; playing = m.isPlaying
             m.addListener(object : Player.Listener {
-                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m) }
+                override fun onMediaItemTransition(item: MediaItem?, reason: Int) { curId = item?.mediaId; item?.mediaId?.toLongOrNull()?.let { prefs.edit().putLong("lastId", it).apply() }; persistQueue(m); appendSimilarTrack(m) }
                 override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { persistQueue(m) }
                 override fun onPlayerError(error: PlaybackException) { msg = "Couldn't play this file. It may have been moved or deleted." }
                 override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying; if (!isPlaying) { prefs.edit().putLong("lastPos", m.currentPosition).apply(); persistQueuePosition(m) } }
@@ -369,7 +386,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         if (sleepEnd > 0) {
             try {
                 if (sleepFade) {
-                    val fade = 20_000L
+                    val fade = 20_000L.coerceAtMost((sleepEnd - System.currentTimeMillis()).coerceAtLeast(1L))
                     delay((sleepEnd - System.currentTimeMillis() - fade).coerceAtLeast(0))
                     for (k in 1..40) { c?.volume = 1f - k / 40f; delay(fade / 40) }
                 } else delay((sleepEnd - System.currentTimeMillis()).coerceAtLeast(0))
@@ -813,6 +830,12 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                         haptics, { setHaptics(it); prefs.edit().putBoolean("haptics", it).apply() }, speed, { speed = it; prefs.edit().putFloat("speed", it).apply() },
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
                         { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
+                        {
+                            val player = c
+                            val remaining = if (player != null && player.duration > 0L) (player.duration - player.currentPosition).coerceAtLeast(0L) else 0L
+                            if (remaining > 0L) { sleepMin = 0; sleepEnd = System.currentTimeMillis() + remaining; msg = "Sleep timer set for end of track" }
+                            else msg = "Play a track to set an end-of-track timer"
+                        },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
                         { profName = ""; profEmail = ""; profVerified = false; guestMode = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
@@ -822,6 +845,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                             if (enabled) { prefs.edit().putBoolean("rememberQueue", true).apply(); c?.takeIf { it.mediaItemCount > 0 }?.let { persistQueue(it, force = true) } }
                             else prefs.edit().putBoolean("rememberQueue", false).remove("savedQueue").remove("savedQueueIndex").remove("savedQueuePosition").apply()
                         },
+                        autoplaySimilar, { autoplaySimilar = it; prefs.edit().putBoolean("autoplaySimilar", it).apply() },
                         keepAwake, { keepAwake = it; prefs.edit().putBoolean("keepAwake", it).apply() }, wallpaperIdx, setWallpaper, { importOfflinePack() }, tracks.any { it.album == "Offline Soundscapes" }, buttonSounds, setButtonSounds, customFontPath.substringAfterLast(File.separator).takeIf { customFontPath.isNotBlank() } ?: "No custom font imported", onImportFont,
                         pauseOnDisconnect, { pauseOnDisconnect = it; prefs.edit().putBoolean("pauseOnDisconnect", it).apply() }, sleepFade, { sleepFade = it; prefs.edit().putBoolean("sleepFade", it).apply() })
                 }

@@ -148,10 +148,11 @@ fun SettingsScreen(
     sub: Int, onSub: (Int) -> Unit, themeIdx: Int, onTheme: (Int) -> Unit,
     autoImport: Boolean, onAuto: (Boolean) -> Unit, scanning: Boolean, onRescan: () -> Unit,
     haptics: Boolean, onHaptics: (Boolean) -> Unit, speed: Float, onSpeed: (Float) -> Unit,
-    sleepAt: String, onSleep: (Int) -> Unit,
+    sleepAt: String, onSleep: (Int) -> Unit, onSleepEndOfTrack: () -> Unit,
     profName: String, profEmail: String, onProfile: (String, String) -> Unit, onSignOut: () -> Unit, onWipe: () -> Unit,
     tracks: List<Track>, coverMatch: Boolean, onCoverMatch: (Boolean) -> Unit, onImportFolder: () -> Unit, profVerified: Boolean,
-    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, rememberQueue: Boolean, onRememberQueue: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
+    autoResume: Boolean, onAutoResume: (Boolean) -> Unit, rememberQueue: Boolean, onRememberQueue: (Boolean) -> Unit,
+    autoplaySimilar: Boolean, onAutoplaySimilar: (Boolean) -> Unit, keepAwake: Boolean, onKeepAwake: (Boolean) -> Unit,
     wallpaperIdx: Int, onWallpaper: (Int) -> Unit, onImportSamples: () -> Unit, samplesImported: Boolean,
     buttonSounds: Boolean, onButtonSounds: (Boolean) -> Unit, customFontName: String, onImportFont: () -> Unit,
     pauseOnDisconnect: Boolean, onPauseOnDisconnect: (Boolean) -> Unit, sleepFade: Boolean, onSleepFade: (Boolean) -> Unit
@@ -231,6 +232,11 @@ fun SettingsScreen(
                             }
                             Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) { Text("AUTO-PLAY SIMILAR TRACKS", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Add an unqueued artist or genre match as playback reaches the end of the queue", style = MaterialTheme.typography.bodySmall) }
+                                Switch(autoplaySimilar, onAutoplaySimilar)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) { Text("KEEP SCREEN AWAKE", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp); Text("Prevent the display from sleeping while music plays", style = MaterialTheme.typography.bodySmall) }
                                 Switch(keepAwake, onKeepAwake)
                             }
@@ -249,6 +255,7 @@ fun SettingsScreen(
                             Text("SLEEP TIMER", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(0, 5, 15, 30, 45, 60, 90).forEach { m -> AssistChip({ onSleep(m) }, { Text(if (m == 0) "Off" else "$m min") }) }
+                                AssistChip(onSleepEndOfTrack, { Text("End of track") })
                             }
                             Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) { Text("FADE OUT BEFORE STOPPING", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Gradually lower the volume during the final 20 seconds", style = MaterialTheme.typography.bodySmall) }
