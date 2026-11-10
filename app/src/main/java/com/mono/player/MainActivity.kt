@@ -226,6 +226,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     var restored by remember { mutableStateOf(false) }
     var profName by remember { mutableStateOf(prefs.getString("pname", "") ?: "") }
     var profEmail by remember { mutableStateOf(prefs.getString("pemail", "") ?: "") }
+    var profVerified by remember { mutableStateOf(prefs.getBoolean("pverified", false)) }
+    val signedIn = profName.isNotBlank() && isGmail(profEmail) && (!GoogleAuth.configured || profVerified)
     var booted by remember { mutableStateOf(false) }
     var greeted by remember { mutableStateOf(false) }
     var started by remember { mutableStateOf(false) }
@@ -256,7 +258,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
         dao.wipeTracks(); dao.wipePlaylistTracks(); dao.wipePlaylists(); dao.wipeLyrics()
         prefs.edit().clear().apply(); AudioFx.resetAll(ctx)
         setTheme(0); setHaptics(true); autoImport = true; speed = 1f; sort = "Title"; asc = true; mode = PlayMode.REPEAT_ALL
-        profName = ""; profEmail = ""; sub = 0; restored = false; curId = null; greeted = false; started = false
+        profName = ""; profEmail = ""; profVerified = false; sub = 0; restored = false; curId = null; greeted = false; started = false
         pager.scrollToPage(1)
     } }
     LaunchedEffect(Unit) {
@@ -296,8 +298,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
     LaunchedEffect(speed, c) { c?.setPlaybackSpeed(speed) }
     LaunchedEffect(pager.currentPage) { prefs.edit().putInt("page", pager.currentPage).apply() }
     LaunchedEffect(Unit) { val t0 = System.currentTimeMillis(); delay(700); while (c == null && System.currentTimeMillis() - t0 < 4000) delay(100); booted = true }
-    LaunchedEffect(booted, profName, profEmail) {
-        if (booted && profName.isNotBlank() && isGmail(profEmail)) {
+    LaunchedEffect(booted, profName, profEmail, profVerified) {
+        if (booted && signedIn) {
             if (!greeted) {
                 greeted = true
                 val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -656,8 +658,8 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
                         if (sleepEnd > 0) android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(sleepEnd)) else "",
                         { min -> sleepMin = min; sleepEnd = if (min > 0) System.currentTimeMillis() + min * 60_000L else 0L },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
-                        { profName = ""; profEmail = ""; prefs.edit().remove("pname").remove("pemail").apply(); greeted = false; sub = 0 }, { wipeAll() },
-                        tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) })
+                        { profName = ""; profEmail = ""; profVerified = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
+                        tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified)
                 }
             }
             }
@@ -687,8 +689,10 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, haptics: Boolean, setHaptics: (B
             )
         }
         Banner(msg, Modifier.align(Alignment.TopCenter))
-        AnimatedVisibility(booted && !(profName.isNotBlank() && isGmail(profEmail)), enter = fadeIn(), exit = fadeOut(tween(500))) {
-            WelcomeScreen(profName, profEmail) { n, e -> profName = n; profEmail = e; prefs.edit().putString("pname", n).putString("pemail", e).apply() }
+        AnimatedVisibility(booted && !signedIn, enter = fadeIn(), exit = fadeOut(tween(500))) {
+            WelcomeScreen(profName, profEmail, GoogleAuth.configured, { GoogleAuth.signIn(ctx.findActivity()) }) { n, e, v ->
+                profName = n; profEmail = e; profVerified = v; prefs.edit().putString("pname", n).putString("pemail", e).putBoolean("pverified", v).apply()
+            }
         }
         AnimatedVisibility(!booted, exit = fadeOut(tween(600))) { SplashScreen() }
     }
