@@ -75,21 +75,21 @@ private fun MenuRow(icon: ImageVector, title: String, info: String, delay: Int, 
     val shape = RoundedCornerShape(22.dp)
     Reveal(delay) {
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(shape).background(Color.Black.copy(alpha = .40f))
-                .border(1.dp, Brush.linearGradient(listOf(a.copy(alpha = .6f), Color.White.copy(alpha = .06f))), shape)
-                .clickable(onClick = onClick).padding(14.dp),
+            Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Brush.linearGradient(listOf(Color(0xD51D1B25), Color(0xA908080C))))
+                .border(1.dp, Brush.linearGradient(listOf(a.copy(alpha = .55f), Color.White.copy(alpha = .08f))), shape)
+                .clickable(onClick = onClick).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)).padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(46.dp).shadow(8.dp, CircleShape, ambientColor = a, spotColor = a).clip(CircleShape)
+            Box(Modifier.size(48.dp).shadow(10.dp, CircleShape, ambientColor = a, spotColor = a).clip(CircleShape)
                 .background(Brush.linearGradient(listOf(lerp(a, Color.White, .2f), lerp(a, Color.Black, .5f)))), Alignment.Center) {
-                Icon(icon, null, tint = Color.White)
+                Icon(icon, null, Modifier.size(21.dp), tint = Color.White)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .7f))
+                Text(title, fontWeight = FontWeight.Bold, letterSpacing = .1.sp)
+                Text(info, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .62f), maxLines = 1)
             }
-            Icon(Icons.Default.KeyboardArrowRight, null)
+            Icon(Icons.Default.ChevronRight, null, tint = Color.White.copy(alpha = .55f))
         }
     }
 }
@@ -103,10 +103,10 @@ private fun ThemeOrb(t: AppTheme, selected: Boolean, delay: Int, onClick: () -> 
     Reveal(delay) {
         Column(Modifier.width(78.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(64.dp).graphicsLayer { scaleX = sc; scaleY = sc }
+                Modifier.size(66.dp).graphicsLayer { scaleX = sc; scaleY = sc; rotationZ = if (selected) 3f else 0f }
                     .shadow((12 * ring).dp, CircleShape, ambientColor = t.accent, spotColor = t.accent).clip(CircleShape)
                     .background(Brush.verticalGradient(listOf(t.top, t.mid, t.bottom))).background(Color.Black.copy(alpha = t.scrim))
-                    .border((2 + 2 * ring).dp, Color.White.copy(alpha = .15f + .85f * ring), CircleShape)
+                    .border((1.5f + 2.5f * ring).dp, Color.White.copy(alpha = .16f + .84f * ring), CircleShape)
                     .clickable { if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
                 Alignment.Center
             ) {
@@ -139,14 +139,14 @@ fun SettingsScreen(
             (slideInHorizontally(tween(300)) { -it / 3 } + fadeIn(tween(300))) togetherWith (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300)))
     }, label = "settings") { s ->
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (s != 0) { EmbossedIconButton({ onSub(0) }, Modifier.size(44.dp)) { Icon(Icons.Default.ArrowBack, "Back to settings") }; Spacer(Modifier.width(12.dp)) }
-                if (titles[s].isNotBlank()) Text(titles[s], style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                if (titles[s].isNotBlank()) Text(titles[s], style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, letterSpacing = (-.5).sp)
             }
             when (s) {
                 0 -> Column(Modifier.verticalScroll(rememberScrollState())) {
                     MenuRow(Icons.Default.Person, profName.ifBlank { "Account" }, profEmail.ifBlank { "Manage your profile" }, 0) { onSub(6) }
-                    MenuRow(Icons.Default.Palette, "Appearance", "Theme: ${Themes[themeIdx].name}", 40) { onSub(1) }
+                    MenuRow(Icons.Default.Palette, "Appearance", "${Themes.size} themes · ${Themes[themeIdx].name} selected", 40) { onSub(1) }
                     MenuRow(Icons.Default.Equalizer, "Audio Studio", "Equalizer, bass, reverb", 90) { onSub(2) }
                     MenuRow(Icons.Default.Speed, "Playback", "Speed, sleep timer, haptics", 140) { onSub(4) }
                     MenuRow(Icons.Default.LibraryMusic, "Library & import", "Auto-import and rescan", 190) { onSub(3) }
@@ -158,7 +158,7 @@ fun SettingsScreen(
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Match colors to album cover", fontWeight = FontWeight.SemiBold)
+                                    Text("MATCH COLORS TO ALBUM ART", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp)
                                     Text("The accent color follows the playing song's artwork", style = MaterialTheme.typography.bodySmall)
                                 }
                                 Switch(coverMatch, onCoverMatch)
@@ -166,9 +166,9 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Reveal(30) { Text("Choose a theme", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .8f)) }
+                    Reveal(30) { Text("CHOOSE YOUR ATMOSPHERE", style = MaterialTheme.typography.labelLarge, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = .78f)) }
                     Spacer(Modifier.height(12.dp))
-                    FlowRow(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Arrangement.spacedBy(16.dp), maxItemsInEachRow = 4) {
+                    FlowRow(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Arrangement.spacedBy(18.dp), maxItemsInEachRow = 4) {
                         Themes.forEachIndexed { i, t -> ThemeOrb(t, i == themeIdx, i * 45) { onTheme(i) } }
                     }
                 }
@@ -177,19 +177,19 @@ fun SettingsScreen(
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text("Resume playback on launch", fontWeight = FontWeight.SemiBold); Text("Automatically continue your last song and position", style = MaterialTheme.typography.bodySmall) }
+                                Column(Modifier.weight(1f)) { Text("RESUME PLAYBACK ON LAUNCH", fontWeight = FontWeight.Bold, letterSpacing = .8.sp, fontSize = 11.sp); Text("Automatically continue your last song and position", style = MaterialTheme.typography.bodySmall) }
                                 Switch(autoResume, onAutoResume)
                             }
                             Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text("Keep screen awake", fontWeight = FontWeight.SemiBold); Text("Prevent the display from sleeping while music plays", style = MaterialTheme.typography.bodySmall) }
+                                Column(Modifier.weight(1f)) { Text("KEEP SCREEN AWAKE", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp); Text("Prevent the display from sleeping while music plays", style = MaterialTheme.typography.bodySmall) }
                                 Switch(keepAwake, onKeepAwake)
                             }
                         }
                     }
                     Reveal(0) {
                         GlassCard(Modifier.fillMaxWidth()) {
-                            Text("Playback speed", fontWeight = FontWeight.SemiBold)
+                            Text("PLAYBACK SPEED", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(0.75f, 1f, 1.25f, 1.5f, 2f).forEach { v -> FilterChip(speed == v, { onSpeed(v) }, { Text("${v}x") }) }
                             }
@@ -197,7 +197,7 @@ fun SettingsScreen(
                     }
                     Reveal(70) {
                         GlassCard(Modifier.fillMaxWidth()) {
-                            Text("Sleep timer", fontWeight = FontWeight.SemiBold)
+                            Text("SLEEP TIMER", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(0, 15, 30, 45, 60).forEach { m -> AssistChip({ onSleep(m) }, { Text(if (m == 0) "Off" else "$m min") }) }
                             }
@@ -207,7 +207,7 @@ fun SettingsScreen(
                     Reveal(140) {
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text("Haptic feedback", fontWeight = FontWeight.SemiBold); Text("Small vibrations on button presses", style = MaterialTheme.typography.bodySmall) }
+                                Column(Modifier.weight(1f)) { Text("HAPTIC FEEDBACK", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp); Text("Small vibrations on button presses", style = MaterialTheme.typography.bodySmall) }
                                 Switch(haptics, onHaptics)
                             }
                         }
@@ -218,7 +218,7 @@ fun SettingsScreen(
                         GlassCard(Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Auto-import music", fontWeight = FontWeight.SemiBold)
+                                    Text("AUTO-IMPORT MUSIC", fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 11.sp)
                                     Text("Finds .mp3, .m4a, .ogg and .wav files on this device", style = MaterialTheme.typography.bodySmall)
                                 }
                                 Switch(autoImport, onAuto)
