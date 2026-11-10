@@ -32,7 +32,7 @@ object DeviceScan {
                     val title = q.getString(iTitle)?.takeIf { it.isNotBlank() } ?: name.substringBeforeLast('.')
                     val artist = q.getString(iArtist)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Unknown artist"
                     val album = q.getString(iAlbum)?.takeIf { it.isNotBlank() } ?: "Unknown album"
-                    if (!known.add("$title|$artist|$dur")) { dup++; continue }
+                    if (!known.add(uri.toString())) { dup++; continue }
                     val art: ByteArray? = if (Build.VERSION.SDK_INT >= 29) try {
                         val bmp = c.contentResolver.loadThumbnail(uri, Size(160, 160), null)
                         ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.JPEG, 70, it) }.toByteArray()
