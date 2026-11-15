@@ -2,7 +2,6 @@ plugins {
     id("com.android.application"); id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose"); id("com.google.devtools.ksp"); id("com.google.gms.google-services")
 }
-val webClientId: String = (project.findProperty("GOOGLE_WEB_CLIENT_ID") as String?) ?: System.getenv("GOOGLE_WEB_CLIENT_ID") ?: ""
 val keystoreFile: File? = System.getenv("KEYSTORE_PATH")?.let { File(it) }?.takeIf { it.exists() && it.length() > 0 }
 
 android {
@@ -39,9 +38,6 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
