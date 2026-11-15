@@ -147,21 +147,21 @@ fun WelcomeScreen(
                                     TextButton(onClick = { createAccount = true }) { Text("Create account", color = if (createAccount) accent else Color.White.copy(.65f)) }
                                 }
                                 Button(onClick = {
-                                    tried = true; gError = null
-                                    if (!ok) { gError = "Enter a valid email address."; return@Button }
-                                    if (password.length < 6) { gError = "Password must be at least 6 characters."; return@Button }
+                                    tried = true; authError = null
+                                    if (!ok) { authError = "Enter a valid email address."; return@Button }
+                                    if (password.length < 6) { authError = "Password must be at least 6 characters."; return@Button }
                                     scope.launch {
                                         busy = true
                                         try {
                                             onEmailAuth(email.trim(), password, createAccount)
                                                 .onSuccess { (n, e) -> onDone(n.ifBlank { e.substringBefore("@") }, e, true) }
-                                                .onFailure { gError = it.message ?: "Authentication failed." }
+                                                .onFailure { authError = it.message ?: "Authentication failed." }
                                         } finally { busy = false }
                                     }
                                 }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(26.dp), colors = ButtonDefaults.buttonColors(containerColor = accent)) {
                                     Text(if (createAccount) "Create Nyxen account" else "Sign in", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                gError?.let {
+                                authError?.let {
                                     Row(
                                         Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp))
                                             .background(Color(0xFF3A171D).copy(alpha = .72f))
@@ -174,7 +174,7 @@ fun WelcomeScreen(
                                         Text(it, color = Color(0xFFFFDADA), fontSize = 12.sp, textAlign = TextAlign.Start)
                                     }
                                 }
-                                Text("Use any email provider. New accounts must verify their email before signing in.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+                                Text("Use any valid email address. Your password stays private.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                         }
                     }
                 }
