@@ -36,6 +36,8 @@ object GoogleAuth {
                 throw IllegalStateException("Unexpected Google credential type.")
             }
             val google = GoogleIdTokenCredential.createFrom(credential.data)
+            val methods = auth.fetchSignInMethodsForEmail(google.id).await().signInMethods.orEmpty()
+            if (methods.isEmpty()) throw IllegalStateException("This email isn't registered with Nyxen. Please create an account first.")
             val firebaseCredential = GoogleAuthProvider.getCredential(google.idToken, null)
             val user = auth.signInWithCredential(firebaseCredential).await().user
                 ?: throw IllegalStateException("Firebase did not return an account.")
