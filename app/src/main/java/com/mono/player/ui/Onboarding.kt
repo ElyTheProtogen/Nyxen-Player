@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import com.mono.player.GoogleAuth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -92,10 +94,11 @@ private fun FeatureCard(icon: ImageVector, title: String, text: String) {
     }
 }
 
-/** Three-step welcome with email and password account access. */
+/** Three-step welcome: hello, what the app does, then an optional profile. Google sign-in is optional; guests can continue without an account. */
 @Composable
 fun WelcomeScreen(
-    initialName: String, initialEmail: String,
+    initialName: String, initialEmail: String, googleEnabled: Boolean,
+    onGoogle: suspend () -> Result<Pair<String, String>>,
     onEmailAuth: suspend (String, String, Boolean) -> Result<Pair<String, String>>,
     onDone: (String, String, Boolean) -> Unit
 ) {
@@ -106,11 +109,12 @@ fun WelcomeScreen(
     var email by remember { mutableStateOf(initialEmail) }
     var tried by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var authError by remember { mutableStateOf<String?>(null) }
+    var gError by remember { mutableStateOf<String?>(null) }
     var password by remember { mutableStateOf("") }
     var createAccount by remember { mutableStateOf(false) }
     val ok = isValidEmail(email)
-        val breathe = rememberInfiniteTransition(label = "breathe")
+    BackHandler(enabled = busy) { /* Keep the authentication flow stable until Google returns. */ }
+    val breathe = rememberInfiniteTransition(label = "breathe")
     val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF24202D), Color(0xFF101016), Color(0xFF07070B))))) {
         AuroraGlow(accent, Modifier.fillMaxSize())
@@ -138,7 +142,33 @@ fun WelcomeScreen(
                         else -> {
                             Text("Make it personal.", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
                             Text("Sign in or create your Nyxen account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
-                            OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email address") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Email, null) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next), isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid email address") })
+                            if (googleEnabled) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
+                                        scope.launch {
+                                            busy = true
+                                            gError = null
+                                            try {
+                                                onGoogle().onSuccess { (n, e) ->
+                                                    onDone(n.ifBlank { "Friend" }, e, true)
+                                                }.onFailure { gError = GoogleAuth.describe(it) }
+                                            } catch (e: Exception) {
+                                                gError = GoogleAuth.describe(e)
+                                            } finally {
+                                                busy = false
+                                            }
+                                        }
+                                    },
+                                    Alignment.Center
+                                ) {
+                                    if (busy) CircularProgressIndicator(Modifier.size(24.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    else Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Email, null, tint = Color.Black); Spacer(Modifier.width(10.dp))
+                                        Text("Continue with Google", color = Color.Black, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email address") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Email, null) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next), isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid email address") })
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -147,21 +177,21 @@ fun WelcomeScreen(
                                     TextButton(onClick = { createAccount = true }) { Text("Create account", color = if (createAccount) accent else Color.White.copy(.65f)) }
                                 }
                                 Button(onClick = {
-                                    tried = true; authError = null
-                                    if (!ok) { authError = "Enter a valid email address."; return@Button }
-                                    if (password.length < 6) { authError = "Password must be at least 6 characters."; return@Button }
+                                    tried = true; gError = null
+                                    if (!ok) { gError = "Enter a valid email address."; return@Button }
+                                    if (password.length < 6) { gError = "Password must be at least 6 characters."; return@Button }
                                     scope.launch {
                                         busy = true
                                         try {
                                             onEmailAuth(email.trim(), password, createAccount)
                                                 .onSuccess { (n, e) -> onDone(n.ifBlank { e.substringBefore("@") }, e, true) }
-                                                .onFailure { authError = it.message ?: "Authentication failed." }
+                                                .onFailure { gError = it.message ?: "Authentication failed." }
                                         } finally { busy = false }
                                     }
                                 }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(26.dp), colors = ButtonDefaults.buttonColors(containerColor = accent)) {
                                     Text(if (createAccount) "Create Nyxen account" else "Sign in", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                authError?.let {
+                                gError?.let {
                                     Row(
                                         Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp))
                                             .background(Color(0xFF3A171D).copy(alpha = .72f))
@@ -174,7 +204,7 @@ fun WelcomeScreen(
                                         Text(it, color = Color(0xFFFFDADA), fontSize = 12.sp, textAlign = TextAlign.Start)
                                     }
                                 }
-                                Text("Use any valid email address. Your password stays private.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+                                Text("Use any email provider. New accounts must verify their email before signing in.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                         }
                     }
                 }
@@ -192,6 +222,86 @@ fun WelcomeScreen(
                 ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
             }
         }
+        if (busy) {
+            GoogleSignInLoading()
+        }
     }
 }
 
+@Composable
+private fun GoogleSignInLoading() {
+    val accent = LocalAccent.current
+    val motion = rememberInfiniteTransition(label = "google-auth-loading")
+    val pulse by motion.animateFloat(
+        initialValue = .94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "google-auth-pulse"
+    )
+    val sweep by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
+        label = "google-auth-sweep"
+    )
+    Box(
+        Modifier.fillMaxSize().background(Color(0xF509090D)),
+        contentAlignment = Alignment.Center
+    ) {
+        AuroraGlow(accent, Modifier.fillMaxSize())
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 32.dp).clip(RoundedCornerShape(32.dp))
+                .background(Color(0xFF191820))
+                .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(32.dp)).padding(30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { sweep },
+                    Modifier.fillMaxSize(),
+                    color = accent,
+                    trackColor = Color.White.copy(alpha = .10f),
+                    strokeWidth = 3.dp
+                )
+                Box(
+                    Modifier.size(76.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }
+                        .clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("G", color = Color(0xFF4285F4), fontSize = 42.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("Connecting to Google", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Waiting for Google Play services to verify your account…",
+                color = Color.White.copy(alpha = .72f), textAlign = TextAlign.Center, fontSize = 13.sp
+            )
+            Spacer(Modifier.height(20.dp))
+            LinearProgressIndicator(
+                Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                color = accent, trackColor = Color.White.copy(alpha = .12f)
+            )
+            Spacer(Modifier.height(14.dp))
+            Text("Please keep Nyxen Player open", color = Color.White.copy(alpha = .48f), fontSize = 11.sp)
+        }
+    }
+}
+
+/** Slide-down message pill used for welcome text, scan results and errors. */
+@Composable
+fun Banner(text: String?, modifier: Modifier = Modifier) {
+    val accent = LocalAccent.current
+    var last by remember { mutableStateOf(text ?: "") }
+    LaunchedEffect(text) { if (text != null) last = text }
+    AnimatedVisibility(
+        text != null, modifier.statusBarsPadding().padding(top = 8.dp),
+        enter = slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { -it * 2 } + fadeIn(),
+        exit = slideOutVertically { -it * 2 } + fadeOut()
+    ) {
+        Surface(shape = RoundedCornerShape(24.dp), color = Color.Black.copy(alpha = .8f), border = BorderStroke(1.dp, accent.copy(alpha = .8f)), shadowElevation = 12.dp) {
+            Text(text ?: last, Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = Color.White)
+        }
+    }
+}
