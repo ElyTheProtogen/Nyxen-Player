@@ -12,8 +12,12 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.withTimeout
 
 /** Firebase is the shared account registry for Nyxen on Android and Windows. */
@@ -36,10 +40,8 @@ object GoogleAuth {
                 throw IllegalStateException("Unexpected Google credential type.")
             }
             val google = GoogleIdTokenCredential.createFrom(credential.data)
-            val methods = auth.fetchSignInMethodsForEmail(google.id).await().signInMethods.orEmpty()
-            if (methods.isEmpty()) throw IllegalStateException("This email isn't registered with Nyxen. Please create an account first.")
-            val firebaseCredential = GoogleAuthProvider.getCredential(google.idToken, null)
-            val user = auth.signInWithCredential(firebaseCredential).await().user
+            val customToken = requestExistingAccountToken(google.idToken)
+            val user = auth.signInWithCustomToken(customToken).await().user
                 ?: throw IllegalStateException("Firebase did not return an account.")
             if (!user.isEmailVerified) {
                 auth.signOut()
@@ -50,6 +52,36 @@ object GoogleAuth {
             Result.failure(error)
         }
     }
+
+
+    private suspend fun requestExistingAccountToken(googleIdToken: String): String =
+        withContext(Dispatchers.IO) {
+            val connection = (URL("https://us-central1-nyxenplayer.cloudfunctions.net/googleSignInForExistingUser")
+                .openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15_000
+                readTimeout = 15_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            try {
+                val payload = JSONObject().put("idToken", googleIdToken).toString()
+                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val json = JSONObject(response.ifBlank { "{}" })
+                if (status !in 200..299) {
+                    throw IllegalStateException(json.optString("error").ifBlank {
+                        "Google sign-in could not be verified. Please try again."
+                    })
+                }
+                json.optString("customToken").takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("Nyxen did not return a sign-in token.")
+            } finally {
+                connection.disconnect()
+            }
+        }
 
     suspend fun emailSignIn(email: String, password: String): Result<Pair<String, String>> = try {
         val user = auth.signInWithEmailAndPassword(email.trim(), password).await().user
