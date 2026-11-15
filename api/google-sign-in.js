@@ -5,7 +5,9 @@ const { getAuth } = require('firebase-admin/auth');
 const { OAuth2Client } = require('google-auth-library');
 
 const GOOGLE_WEB_CLIENT_ID = '936657455185-28l7q0jf6nkh4m44fv5jjmah6qi0a3gk.apps.googleusercontent.com';
-const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
+const GOOGLE_WINDOWS_DESKTOP_CLIENT_ID = '936657455185-59pnkfdb20lfgf9moujtg86gb7o62ghf.apps.googleusercontent.com';
+const GOOGLE_ALLOWED_CLIENT_IDS = [GOOGLE_WEB_CLIENT_ID, GOOGLE_WINDOWS_DESKTOP_CLIENT_ID];
+const googleClient = new OAuth2Client();
 
 function adminAuth() {
   if (!getApps().length) {
@@ -36,7 +38,7 @@ module.exports = async function handler(req, res) {
 
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: GOOGLE_WEB_CLIENT_ID
+      audience: GOOGLE_ALLOWED_CLIENT_IDS
     });
     const google = ticket.getPayload();
     if (!google?.sub || !google.email || google.email_verified !== true) {
