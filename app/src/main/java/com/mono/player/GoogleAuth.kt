@@ -24,7 +24,7 @@ import kotlinx.coroutines.withTimeout
 object GoogleAuth {
     private val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
     val configured: Boolean get() = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
-    val isSignedIn: Boolean get() = auth.currentUser?.isEmailVerified == true
+    val isSignedIn: Boolean get() = auth.currentUser != null
 
     suspend fun signIn(activity: Activity?): Result<Pair<String, String>> {
         if (activity == null) return Result.failure(IllegalStateException("No screen available"))
@@ -43,10 +43,6 @@ object GoogleAuth {
             val customToken = requestExistingAccountToken(google.idToken)
             val user = auth.signInWithCustomToken(customToken).await().user
                 ?: throw IllegalStateException("Firebase did not return an account.")
-            if (!user.isEmailVerified) {
-                auth.signOut()
-                throw IllegalStateException("Please verify your email address before signing in.")
-            }
             Result.success((user.displayName ?: google.displayName ?: user.email ?: "Friend") to (user.email ?: google.id))
         } catch (error: Exception) {
             Result.failure(error)
@@ -86,10 +82,6 @@ object GoogleAuth {
     suspend fun emailSignIn(email: String, password: String): Result<Pair<String, String>> = try {
         val user = auth.signInWithEmailAndPassword(email.trim(), password).await().user
             ?: throw IllegalStateException("Nyxen could not load this account.")
-        if (!user.isEmailVerified) {
-            auth.signOut()
-            throw IllegalStateException("Please verify your email first. Check your inbox for the verification link.")
-        }
         Result.success((user.displayName ?: email.substringBefore("@")) to (user.email ?: email))
     } catch (error: Exception) {
         Result.failure(IllegalStateException(authMessage(error)))
@@ -98,9 +90,7 @@ object GoogleAuth {
     suspend fun register(email: String, password: String): Result<Pair<String, String>> = try {
         val user = auth.createUserWithEmailAndPassword(email.trim(), password).await().user
             ?: throw IllegalStateException("Nyxen could not create this account.")
-        user.sendEmailVerification().await()
-        auth.signOut()
-        Result.failure(IllegalStateException("Account created. We sent a verification link to ${email.trim()}. Verify your email, then sign in."))
+        Result.success((user.displayName ?: email.substringBefore("@")) to (user.email ?: email))
     } catch (error: Exception) {
         Result.failure(IllegalStateException(authMessage(error)))
     }
