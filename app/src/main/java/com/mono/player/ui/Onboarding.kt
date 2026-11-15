@@ -141,8 +141,8 @@ fun WelcomeScreen(
                         }
                         else -> {
                             Text("Make it personal.", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
-                            if (true) {
-                                Text("Sign in or create your Nyxen account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
+                            Text("Sign in or create your Nyxen account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
+                            if (googleEnabled) {
                                 Box(
                                     Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
                                         scope.launch {
@@ -167,6 +167,7 @@ fun WelcomeScreen(
                                         Text("Continue with Google", color = Color.Black, fontWeight = FontWeight.Bold)
                                     }
                                 }
+                            }
                                 OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email address") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Email, null) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next), isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid email address") })
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
@@ -204,7 +205,6 @@ fun WelcomeScreen(
                                     }
                                 }
                                 Text("Use any email provider. New accounts must verify their email before signing in.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
-                            }
                         }
                     }
                 }
@@ -216,7 +216,7 @@ fun WelcomeScreen(
                         Box(Modifier.height(8.dp).width(w).clip(CircleShape).background(if (pager.currentPage == i) Color.White else Color.White.copy(alpha = .3f)))
                     }
                 }
-                if (pager.currentPage < 2 || !googleEnabled) EmbossedIconButton(
+                if (pager.currentPage < 2) EmbossedIconButton(
                     { if (pager.currentPage < 2) scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } else { tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim(), false) } },
                     Modifier.height(52.dp).widthIn(min = 140.dp).graphicsLayer { alpha = if (pager.currentPage < 2 || ok) 1f else 0.55f }, RoundedCornerShape(26.dp)
                 ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
