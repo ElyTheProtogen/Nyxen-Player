@@ -56,7 +56,7 @@ object GoogleAuth {
 
     private suspend fun requestExistingAccountToken(googleIdToken: String): String =
         withContext(Dispatchers.IO) {
-            val connection = (URL("https://us-central1-nyxenplayer.cloudfunctions.net/googleSignInForExistingUser")
+            val connection = (URL("https://nyxen-player.vercel.app/api/google-sign-in")
                 .openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15_000
