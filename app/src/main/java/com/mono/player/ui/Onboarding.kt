@@ -141,7 +141,7 @@ fun WelcomeScreen(
                         }
                         else -> {
                             Text("Make it personal.", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
-                            if (googleEnabled) {
+                            if (true) {
                                 Text("Sign in or create your Nyxen account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
                                 Box(
                                     Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
@@ -204,24 +204,6 @@ fun WelcomeScreen(
                                     }
                                 }
                                 Text("Use any email provider. New accounts must verify their email before signing in.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
-                            } else {
-                                Text("Add a profile (optional)", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
-                                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
-                                Spacer(Modifier.height(10.dp))
-                                OutlinedTextField(
-                                    email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email address (not verified)") }, singleLine = true,
-                                    leadingIcon = { Icon(Icons.Default.Email, null) },
-                                    trailingIcon = { AnimatedVisibility(ok, enter = fadeIn() + scaleIn(), exit = fadeOut()) { Icon(Icons.Default.CheckCircle, "Valid Gmail address", tint = Color(0xFF4CD964)) } },
-                                    isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid email address") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
-                                )
-                                Text("No account is required. Your music library stays on this device.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-                            }
-                            TextButton(
-                                onClick = { onDone("Guest", "", false) },
-                                modifier = Modifier.padding(top = 10.dp)
-                            ) {
-                                Text("Continue as guest", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
