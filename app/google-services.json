@@ -1,0 +1,27 @@
+{
+  "project_info": {
+    "project_number": "936657455185",
+    "project_id": "nyxenplayer",
+    "storage_bucket": "nyxenplayer.firebasestorage.app"
+  },
+  "client": [{
+    "client_info": {
+      "mobilesdk_app_id": "1:936657455185:android:6f6f1f1da9fd3274509070",
+      "android_client_info": { "package_name": "com.mono.player" }
+    },
+    "oauth_client": [{
+      "client_id": "936657455185-f2i2mds6vhnvi974l8j42fk0bi2lug30.apps.googleusercontent.com",
+      "client_type": 3
+    }],
+    "api_key": [{ "current_key": "AIzaSyBfYKwEhCVmlqc_-RiEhbVvvmp-AbpoNz8" }],
+    "services": {
+      "appinvite_service": {
+        "other_platform_oauth_client": [{
+          "client_id": "936657455185-28l7q0jf6nkh4m44fv5jjmah6qi0a3gk.apps.googleusercontent.com",
+          "client_type": 3
+        }]
+      }
+    }
+  }],
+  "configuration_version": "1"
+}
