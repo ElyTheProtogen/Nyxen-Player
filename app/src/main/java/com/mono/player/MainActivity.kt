@@ -269,7 +269,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
     var profEmail by remember { mutableStateOf(prefs.getString("pemail", "") ?: "") }
     var profVerified by remember { mutableStateOf(prefs.getBoolean("pverified", false)) }
     var guestMode by remember { mutableStateOf(prefs.getBoolean("guestMode", false)) }
-    var firebaseSignedIn by remember { mutableStateOf(GoogleAuth.isSignedIn) }
+    var firebaseSignedIn by remember { mutableStateOf(NyxenAuth.isSignedIn) }
     val signedIn = firebaseSignedIn
     var booted by remember { mutableStateOf(false) }
     var greeted by remember { mutableStateOf(false) }
@@ -849,7 +849,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
                             else msg = "Play a track to set an end-of-track timer"
                         },
                         profName, profEmail, { n, e -> if (n.isNotBlank()) profName = n; profEmail = e; prefs.edit().putString("pname", profName).putString("pemail", e).apply() },
-                        { profName = ""; profEmail = ""; profVerified = false; guestMode = false; firebaseSignedIn = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; scope.launch { GoogleAuth.signOut(ctx) } }, { wipeAll() },
+                        { profName = ""; profEmail = ""; profVerified = false; guestMode = false; firebaseSignedIn = false; prefs.edit().remove("pname").remove("pemail").remove("pverified").remove("guestMode").apply(); greeted = false; sub = 0; NyxenAuth.signOut() }, { wipeAll() },
                         tracks, coverMatch, { setCoverMatch(it) }, { folderPicker.launch(null) }, profVerified,
                         autoResume, { autoResume = it; prefs.edit().putBoolean("autoResume", it).apply() },
                         rememberQueue, { enabled ->
@@ -897,7 +897,7 @@ fun App(themeIdx: Int, setTheme: (Int) -> Unit, wallpaperIdx: Int, setWallpaper:
         }
         Banner(msg, Modifier.align(Alignment.TopCenter))
         AnimatedVisibility(booted && !signedIn, enter = fadeIn(), exit = fadeOut(tween(500))) {
-            WelcomeScreen(profName, profEmail, GoogleAuth.configured, { GoogleAuth.signIn(ctx.findActivity()) }, { e, p, create -> if (create) GoogleAuth.register(e, p) else GoogleAuth.emailSignIn(e, p) }) { n, e, v ->
+            WelcomeScreen(profName, profEmail, { e, p, create -> if (create) NyxenAuth.register(e, p) else NyxenAuth.emailSignIn(e, p) }) { n, e, v ->
                 profName = n; profEmail = e; profVerified = v; guestMode = false; firebaseSignedIn = true
                 prefs.edit().putString("pname", n).putString("pemail", e).putBoolean("pverified", v).putBoolean("guestMode", guestMode).apply()
             }
