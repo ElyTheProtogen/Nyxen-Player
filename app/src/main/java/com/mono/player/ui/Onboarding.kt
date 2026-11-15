@@ -77,10 +77,8 @@ private fun FeatureRow(icon: ImageVector, text: String) {
     }
 }
 
-private val GMAIL = Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$", RegexOption.IGNORE_CASE)
-
-/** True only for a well-formed @gmail.com address. */
-fun isGmail(email: String): Boolean = GMAIL.matches(email.trim())
+private val EMAIL = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", RegexOption.IGNORE_CASE)
+fun isValidEmail(email: String): Boolean = EMAIL.matches(email.trim())
 
 @Composable
 private fun FeatureCard(icon: ImageVector, title: String, text: String) {
@@ -100,7 +98,9 @@ private fun FeatureCard(icon: ImageVector, title: String, text: String) {
 @Composable
 fun WelcomeScreen(
     initialName: String, initialEmail: String, googleEnabled: Boolean,
-    onGoogle: suspend () -> Result<Pair<String, String>>, onDone: (String, String, Boolean) -> Unit
+    onGoogle: suspend () -> Result<Pair<String, String>>,
+    onEmailAuth: suspend (String, String, Boolean) -> Result<Pair<String, String>>,
+    onDone: (String, String, Boolean) -> Unit
 ) {
     val accent = LocalAccent.current
     val scope = rememberCoroutineScope()
@@ -110,7 +110,9 @@ fun WelcomeScreen(
     var tried by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var gError by remember { mutableStateOf<String?>(null) }
-    val ok = isGmail(email)
+    var password by remember { mutableStateOf("") }
+    var createAccount by remember { mutableStateOf(false) }
+    val ok = isValidEmail(email)
     BackHandler(enabled = busy) { /* Keep the authentication flow stable until Google returns. */ }
     val breathe = rememberInfiniteTransition(label = "breathe")
     val pulse by breathe.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
@@ -139,8 +141,8 @@ fun WelcomeScreen(
                         }
                         else -> {
                             Text("Make it personal.", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center)
+                            Text("Sign in or create your Nyxen account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
                             if (googleEnabled) {
-                                Text("Sign in with your Google (Gmail) account", color = Color.White.copy(alpha = .7f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
                                 Box(
                                     Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(Color.White).clickable(enabled = !busy) {
                                         scope.launch {
@@ -148,8 +150,7 @@ fun WelcomeScreen(
                                             gError = null
                                             try {
                                                 onGoogle().onSuccess { (n, e) ->
-                                                    if (isGmail(e)) onDone(n.ifBlank { "Friend" }, e, true)
-                                                    else gError = "Please choose a @gmail.com account."
+                                                    onDone(n.ifBlank { "Friend" }, e, true)
                                                 }.onFailure { gError = GoogleAuth.describe(it) }
                                             } catch (e: Exception) {
                                                 gError = GoogleAuth.describe(e)
@@ -166,6 +167,30 @@ fun WelcomeScreen(
                                         Text("Continue with Google", color = Color.Black, fontWeight = FontWeight.Bold)
                                     }
                                 }
+                            }
+                                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email address") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Email, null) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next), isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid email address") })
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { createAccount = false }) { Text("Sign in", color = if (!createAccount) accent else Color.White.copy(.65f)) }
+                                    Text("·", color = Color.White.copy(.5f))
+                                    TextButton(onClick = { createAccount = true }) { Text("Create account", color = if (createAccount) accent else Color.White.copy(.65f)) }
+                                }
+                                Button(onClick = {
+                                    tried = true; gError = null
+                                    if (!ok) { gError = "Enter a valid email address."; return@Button }
+                                    if (password.length < 6) { gError = "Password must be at least 6 characters."; return@Button }
+                                    scope.launch {
+                                        busy = true
+                                        try {
+                                            onEmailAuth(email.trim(), password, createAccount)
+                                                .onSuccess { (n, e) -> onDone(n.ifBlank { e.substringBefore("@") }, e, true) }
+                                                .onFailure { gError = it.message ?: "Authentication failed." }
+                                        } finally { busy = false }
+                                    }
+                                }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(26.dp), colors = ButtonDefaults.buttonColors(containerColor = accent)) {
+                                    Text(if (createAccount) "Create Nyxen account" else "Sign in", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                                 gError?.let {
                                     Row(
                                         Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp))
@@ -179,26 +204,7 @@ fun WelcomeScreen(
                                         Text(it, color = Color(0xFFFFDADA), fontSize = 12.sp, textAlign = TextAlign.Start)
                                     }
                                 }
-                                Text("You can skip sign-in and use Nyxen Player locally.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
-                            } else {
-                                Text("Add a profile (optional)", color = Color.White.copy(alpha = .7f), modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
-                                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("What should we call you?") }, singleLine = true)
-                                Spacer(Modifier.height(10.dp))
-                                OutlinedTextField(
-                                    email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Gmail address (not verified)") }, singleLine = true,
-                                    leadingIcon = { Icon(Icons.Default.Email, null) },
-                                    trailingIcon = { AnimatedVisibility(ok, enter = fadeIn() + scaleIn(), exit = fadeOut()) { Icon(Icons.Default.CheckCircle, "Valid Gmail address", tint = Color(0xFF4CD964)) } },
-                                    isError = tried && !ok, supportingText = { if (tried && !ok) Text("Enter a valid @gmail.com address") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
-                                )
-                                Text("No account is required. Your music library stays on this device.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-                            }
-                            TextButton(
-                                onClick = { onDone("Guest", "", false) },
-                                modifier = Modifier.padding(top = 10.dp)
-                            ) {
-                                Text("Continue as guest", color = Color.White, fontWeight = FontWeight.SemiBold)
-                            }
+                                Text("Use any email provider. New accounts must verify their email before signing in.", fontSize = 11.sp, color = Color.White.copy(alpha = .6f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                         }
                     }
                 }
@@ -210,7 +216,7 @@ fun WelcomeScreen(
                         Box(Modifier.height(8.dp).width(w).clip(CircleShape).background(if (pager.currentPage == i) Color.White else Color.White.copy(alpha = .3f)))
                     }
                 }
-                if (pager.currentPage < 2 || !googleEnabled) EmbossedIconButton(
+                if (pager.currentPage < 2) EmbossedIconButton(
                     { if (pager.currentPage < 2) scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } else { tried = true; if (ok) onDone(name.trim().ifBlank { "Friend" }, email.trim(), false) } },
                     Modifier.height(52.dp).widthIn(min = 140.dp).graphicsLayer { alpha = if (pager.currentPage < 2 || ok) 1f else 0.55f }, RoundedCornerShape(26.dp)
                 ) { Text(if (pager.currentPage < 2) "Next" else "Get started", Modifier.padding(horizontal = 24.dp), fontWeight = FontWeight.Bold) }
