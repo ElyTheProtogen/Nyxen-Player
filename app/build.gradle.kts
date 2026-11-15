@@ -7,7 +7,7 @@ val keystoreFile: File? = System.getenv("KEYSTORE_PATH")?.let { File(it) }?.take
 android {
     namespace = "com.mono.player"; compileSdk = 35
     defaultConfig { applicationId = "com.mono.player"; minSdk = 26; targetSdk = 35; versionCode = 4; versionName = "1.3"
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"") }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
